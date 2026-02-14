@@ -115,13 +115,19 @@ export default function App() {
     setLoadingMsg(0);
 
     try {
-      const res = await fetch("/api/generate", {
+const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ guestPhoto: guestDataUrl }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Server response: " + text.slice(0, 200));
+      }
 
       if (!res.ok) {
         throw new Error(data?.error || "Something went wrong");
