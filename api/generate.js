@@ -41,13 +41,15 @@ export default async function handler(req, res) {
     addField("model", "gpt-image-1");
     addField(
       "prompt",
-      "Create a beautiful, joyful professional wedding group photograph. " +
-        "There are THREE people in this photo: the bride (from image 1), " +
-        "the groom (from image 2), and a wedding guest (from image 3). " +
-        "The guest is standing between or beside the bride and groom, all smiling together. " +
-        "They are at an elegant wedding venue with soft romantic lighting, lush floral " +
-        "arrangements, and a dreamy atmosphere. Make it look like a high-end candid wedding " +
-        "photo with warm golden tones. Preserve each person's face and features accurately."
+"Create a fun, colorful wedding caricature illustration. " +
+        "There are THREE people: the bride (from image 1), the groom (from image 2), " +
+        "and a wedding guest (from image 3). Draw all three as exaggerated, playful " +
+        "caricatures in a cartoon style — big heads, expressive faces, and fun proportions. " +
+        "Keep each person's key facial features recognizable (hair color, skin tone, face shape) " +
+        "but stylized in a whimsical caricature art style. The bride should be in a white wedding dress, " +
+        "the groom in a suit, and the guest in formal attire. Place them together in a festive " +
+        "wedding scene with flowers, confetti, and a 'Just Married' banner. " +
+        "Use a bright, joyful color palette with a clean illustrated look."
     );
     addField("size", "1536x1024");
     addField("quality", "high");
