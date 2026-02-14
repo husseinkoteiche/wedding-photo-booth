@@ -20,56 +20,49 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Build the input with multiple reference images
     const input = {
-     prompt:
-        "Create a professional high-quality wedding photograph. " +
-        "CRITICAL: Preserve each person's exact face, skin tone, facial structure, " +
-        "hair color, hair style, and distinguishing features with photographic accuracy. " +
-        "Do NOT alter or idealize their faces — they must be immediately recognizable. " +
-        "Reference image 1 is the bride — she is wearing an elegant white wedding gown. " +
-        "Reference image 2 is the groom — he is wearing a classic black tuxedo with a bow tie. " +
-        "Reference image 3 is a wedding guest in formal attire. " +
-        "All three are standing close together, smiling naturally at the camera. " +
-        "The setting is a beautiful outdoor wedding venue with soft golden hour sunlight, " +
-        "blurred green garden background with bokeh, and subtle floral arrangements nearby. " +
-        "Shot with a Canon EOS R5, 85mm f/1.4 lens, shallow depth of field. " +
-        "Professional wedding photography lighting, warm tones, natural skin textures. " +
-        "The photo should look indistinguishable from a real wedding photograph.",
+      prompt:
+        "Create a professional high-quality wedding photograph of three people together. " +
+        "CRITICAL: Use the EXACT faces from the reference images — do not generate new faces. " +
+        "The person from input_image is the bride wearing an elegant white wedding gown. " +
+        "The person from input_image_2 is the groom wearing a classic black tuxedo. " +
+        "The person from input_image_3 is a wedding guest in formal attire. " +
+        "All three people must have their exact real faces, skin tones, facial structures, " +
+        "hair colors, and distinguishing features preserved with photographic accuracy. " +
+        "They are standing close together, smiling naturally at the camera. " +
+        "Beautiful outdoor wedding venue, soft golden hour sunlight, " +
+        "blurred green garden background with bokeh, floral arrangements. " +
+        "Professional wedding photography, Canon 85mm f/1.4, warm tones, natural skin.",
       aspect_ratio: "16:9",
       output_format: "png",
       output_quality: 90,
     };
 
-    // Add reference images
-    let imageIndex = 1;
+    // Flux 2 Pro uses: input_image, input_image_2, input_image_3, etc.
     if (BRIDE_PHOTO_URL) {
-      input[`input_image_${imageIndex}`] = BRIDE_PHOTO_URL;
-      imageIndex++;
+      input.input_image = BRIDE_PHOTO_URL;
     }
     if (GROOM_PHOTO_URL) {
-      input[`input_image_${imageIndex}`] = GROOM_PHOTO_URL;
-      imageIndex++;
+      input.input_image_2 = GROOM_PHOTO_URL;
     }
-    // Guest selfie as base64 data URL
-    input[`input_image_${imageIndex}`] = guestPhoto;
+    input.input_image_3 = guestPhoto;
 
-    // Create prediction
-const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions", {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${REPLICATE_API_TOKEN}`,
-        "Content-Type": "application/json",
-        Prefer: "wait",
-      },
-      body: JSON.stringify({
-        input: input,
-      }),
-    });
+    const createRes = await fetch(
+      "https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${REPLICATE_API_TOKEN}`,
+          "Content-Type": "application/json",
+          Prefer: "wait",
+        },
+        body: JSON.stringify({ input }),
+      }
+    );
 
     if (!createRes.ok) {
       const errData = await createRes.json().catch(() => ({}));
-      console.error("Replicate create error:", JSON.stringify(errData));
+      console.error("Replicate error:", JSON.stringify(errData));
       return res.status(502).json({
         error: errData?.detail || "Failed to start image generation",
       });
@@ -77,25 +70,18 @@ const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-
 
     let prediction = await createRes.json();
 
-    // If not using "Prefer: wait", poll for completion
+    // Poll if not yet complete
     while (
       prediction.status !== "succeeded" &&
       prediction.status !== "failed" &&
       prediction.status !== "canceled"
     ) {
       await new Promise((r) => setTimeout(r, 2000));
-
       const pollRes = await fetch(
         `https://api.replicate.com/v1/predictions/${prediction.id}`,
-        {
-          headers: { Authorization: `Token ${REPLICATE_API_TOKEN}` },
-        }
+        { headers: { Authorization: `Token ${REPLICATE_API_TOKEN}` } }
       );
-
-      if (!pollRes.ok) {
-        throw new Error("Failed to check generation status");
-      }
-
+      if (!pollRes.ok) throw new Error("Failed to check status");
       prediction = await pollRes.json();
     }
 
@@ -106,7 +92,6 @@ const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-
       });
     }
 
-    // Flux 2 Pro returns a URL string or array
     const outputUrl = Array.isArray(prediction.output)
       ? prediction.output[0]
       : prediction.output;
