@@ -22,19 +22,20 @@ export default async function handler(req, res) {
   try {
     // Build the input with multiple reference images
     const input = {
-      prompt:
-        "Create a fun, colorful wedding caricature illustration. " +
-        "There are THREE people in this image: " +
-        "Reference image 1 is the bride — draw her in a beautiful white wedding dress. " +
-        "Reference image 2 is the groom — draw him in a sharp suit or tuxedo. " +
-        "Reference image 3 is a wedding guest standing with them. " +
-        "Draw all three as playful, exaggerated caricatures with big heads, " +
-        "expressive smiling faces, and fun proportions. " +
-        "Keep each person's key facial features clearly recognizable " +
-        "(hair color, skin tone, face shape, distinctive features) " +
-        "but stylized in a whimsical cartoon caricature art style. " +
-        "Place them together in a festive wedding scene with flowers, " +
-        "confetti, and warm joyful colors. Professional caricature illustration quality.",
+     prompt:
+        "Create a professional high-quality wedding photograph. " +
+        "CRITICAL: Preserve each person's exact face, skin tone, facial structure, " +
+        "hair color, hair style, and distinguishing features with photographic accuracy. " +
+        "Do NOT alter or idealize their faces — they must be immediately recognizable. " +
+        "Reference image 1 is the bride — she is wearing an elegant white wedding gown. " +
+        "Reference image 2 is the groom — he is wearing a classic black tuxedo with a bow tie. " +
+        "Reference image 3 is a wedding guest in formal attire. " +
+        "All three are standing close together, smiling naturally at the camera. " +
+        "The setting is a beautiful outdoor wedding venue with soft golden hour sunlight, " +
+        "blurred green garden background with bokeh, and subtle floral arrangements nearby. " +
+        "Shot with a Canon EOS R5, 85mm f/1.4 lens, shallow depth of field. " +
+        "Professional wedding photography lighting, warm tones, natural skin textures. " +
+        "The photo should look indistinguishable from a real wedding photograph.",
       aspect_ratio: "16:9",
       output_format: "png",
       output_quality: 90,
