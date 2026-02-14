@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     input[`input_image_${imageIndex}`] = guestPhoto;
 
     // Create prediction
-    const createRes = await fetch("https://api.replicate.com/v1/predictions", {
+const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions", {
       method: "POST",
       headers: {
         Authorization: `Token ${REPLICATE_API_TOKEN}`,
@@ -62,7 +62,6 @@ export default async function handler(req, res) {
         Prefer: "wait",
       },
       body: JSON.stringify({
-        model: "black-forest-labs/flux-2-pro",
         input: input,
       }),
     });
