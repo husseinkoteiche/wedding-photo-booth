@@ -1,24 +1,11 @@
-/*
- * /api/generate.js
- * ────────────────
- * Vercel serverless function that proxies requests to OpenAI.
- * This keeps your API key on the server — never exposed to guests.
- *
- * Environment variables needed (set in Vercel dashboard):
- *   OPENAI_API_KEY    — Your OpenAI API key
- *   BRIDE_PHOTO_URL   — Public URL to bride's photo
- *   GROOM_PHOTO_URL   — Public URL to groom's photo
- */
-
 export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
-  // Only allow POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { guestPhoto } = req.body; // base64 data URL from the guest's selfie
+  const { guestPhoto } = req.body;
 
   if (!guestPhoto) {
     return res.status(400).json({ error: "No guest photo provided" });
@@ -29,64 +16,86 @@ export default async function handler(req, res) {
   const GROOM_PHOTO_URL = process.env.GROOM_PHOTO_URL;
 
   if (!OPENAI_API_KEY) {
-    return res.status(500).json({ error: "Server misconfigured: missing API key" });
+    return res.status(500).json({ error: "Missing API key" });
   }
 
   try {
-    // ── Convert base64 strings to Blobs for the FormData ──
-    function base64ToBlob(dataUrl) {
-      const [header, b64] = dataUrl.split(",");
-      const mime = header.match(/:(.*?);/)?.[1] || "image/png";
-      const bytes = Buffer.from(b64, "base64");
-      return new Blob([bytes], { type: mime });
+    // Build multipart form data manually for Node.js compatibility
+    const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
+    const parts = [];
+
+    function addField(name, value) {
+      parts.push(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+      );
     }
 
-    // Fetch remote image and return as Blob
-    async function urlToBlob(url) {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
-      return response.blob();
+    function addFile(name, filename, contentType, buffer) {
+      parts.push(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`
+      );
+      parts.push(buffer);
+      parts.push("\r\n");
     }
 
-    const prompt =
+    addField("model", "gpt-image-1");
+    addField(
+      "prompt",
       "Create a beautiful, joyful professional wedding group photograph. " +
-      "There are THREE people in this photo: the bride (from image 1), " +
-      "the groom (from image 2), and a wedding guest (from image 3). " +
-      "The guest is standing between or beside the bride and groom, all smiling together. " +
-      "They are at an elegant wedding venue with soft romantic lighting, lush floral " +
-      "arrangements, and a dreamy atmosphere. Make it look like a high-end candid wedding " +
-      "photo with warm golden tones. Preserve each person's face and features accurately.";
+        "There are THREE people in this photo: the bride (from image 1), " +
+        "the groom (from image 2), and a wedding guest (from image 3). " +
+        "The guest is standing between or beside the bride and groom, all smiling together. " +
+        "They are at an elegant wedding venue with soft romantic lighting, lush floral " +
+        "arrangements, and a dreamy atmosphere. Make it look like a high-end candid wedding " +
+        "photo with warm golden tones. Preserve each person's face and features accurately."
+    );
+    addField("size", "1536x1024");
+    addField("quality", "high");
 
-    // ── Build FormData with all three images ──
-    const formData = new FormData();
-    formData.append("model", "gpt-image-1");
-    formData.append("prompt", prompt);
-    formData.append("size", "1536x1024");
-    formData.append("quality", "high");
-
+    // Fetch bride photo
     if (BRIDE_PHOTO_URL) {
-      const brideBlob = await urlToBlob(BRIDE_PHOTO_URL);
-      formData.append("image[]", brideBlob, "bride.png");
+      const brideRes = await fetch(BRIDE_PHOTO_URL);
+      if (brideRes.ok) {
+        const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
+        addFile("image[]", "bride.jpg", "image/jpeg", brideBuffer);
+      }
     }
 
+    // Fetch groom photo
     if (GROOM_PHOTO_URL) {
-      const groomBlob = await urlToBlob(GROOM_PHOTO_URL);
-      formData.append("image[]", groomBlob, "groom.png");
+      const groomRes = await fetch(GROOM_PHOTO_URL);
+      if (groomRes.ok) {
+        const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
+        addFile("image[]", "groom.jpg", "image/jpeg", groomBuffer);
+      }
     }
 
-    const guestBlob = base64ToBlob(guestPhoto);
-    formData.append("image[]", guestBlob, "guest.png");
+    // Guest selfie from base64
+    const base64Data = guestPhoto.split(",")[1];
+    const guestBuffer = Buffer.from(base64Data, "base64");
+    addFile("image[]", "guest.png", "image/png", guestBuffer);
 
-    // ── Call OpenAI ──
+    parts.push(`--${boundary}--\r\n`);
+
+    // Combine all parts into a single Buffer
+    const bodyParts = parts.map((p) =>
+      typeof p === "string" ? Buffer.from(p, "utf-8") : p
+    );
+    const bodyBuffer = Buffer.concat(bodyParts);
+
+    // Call OpenAI
     const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: formData,
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: bodyBuffer,
     });
 
     if (!openaiRes.ok) {
       const errData = await openaiRes.json().catch(() => ({}));
-      console.error("OpenAI error:", errData);
+      console.error("OpenAI error:", JSON.stringify(errData));
       return res.status(502).json({
         error: errData?.error?.message || "AI generation failed",
       });
@@ -100,7 +109,7 @@ export default async function handler(req, res) {
     } else if (img?.url) {
       return res.status(200).json({ image: img.url });
     } else {
-      return res.status(502).json({ error: "No image returned from AI" });
+      return res.status(502).json({ error: "No image returned" });
     }
   } catch (err) {
     console.error("Generate error:", err);
