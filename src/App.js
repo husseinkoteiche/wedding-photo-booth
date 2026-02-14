@@ -94,7 +94,7 @@ export default function App() {
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.5);
         setSelfie(dataUrl);
         stopCamera();
         generateImage(dataUrl);
