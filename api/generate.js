@@ -14,83 +14,65 @@ export default async function handler(req, res) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const BRIDE_PHOTO_URL = process.env.BRIDE_PHOTO_URL;
   const GROOM_PHOTO_URL = process.env.GROOM_PHOTO_URL;
-
-  // NEW: Put the “closest” image (the one you shared) on Cloudinary and set this env var.
-  // It acts as a STYLE reference only.
-  const STYLE_REF_URL = process.env.STYLE_REF_URL;
+  const STYLE_REF_URL = process.env.STYLE_REF_URL; // optional but recommended
 
   if (!OPENAI_API_KEY) {
     return res.status(500).json({ error: "Missing API key" });
   }
 
-  // Prefer face-crops for identity (huge improvement if your refs include background)
-  function faceCropUrl(url) {
+  function faceCrop(url) {
     if (!url) return url;
-    if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
-      // g_face = focus on detected face
-      // c_thumb = tight crop
-      // w/h 1024 = enough detail for identity
+    if (url.includes("/upload/")) {
       return url.replace("/upload/", "/upload/c_thumb,g_face,w_1024,h_1024/");
     }
     return url;
   }
 
-  // For the style reference we don't need face crop; just cap it
-  function styleResizeUrl(url) {
+  function resize(url) {
     if (!url) return url;
-    if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+    if (url.includes("/upload/")) {
       return url.replace("/upload/", "/upload/c_limit,w_1536,h_1024/");
     }
     return url;
   }
 
   try {
-    console.log("Generating image...");
+    console.log("Generating image…");
 
-    // Key change: NO @image0 tokens. We bind via ORDER of uploaded images.
-    // Also: Remove text overlay from generation to protect face fidelity.
-    const prompt =
-      "You are provided FOUR reference images via image[] uploads IN THIS EXACT ORDER:\n" +
-      "1) BRIDE face reference\n" +
-      "2) GROOM face reference\n" +
-      "3) GUEST face reference\n" +
-      "4) STYLE reference image (match its illustration style + composition)\n\n" +
+    const prompt = `
+Create a wedding photobooth caricature illustration.
 
-      "GOAL: Generate ONE wedding photobooth caricature illustration in the SAME style as the style reference (image #4), but with MORE accurate likeness to the bride, groom, and guest.\n\n" +
+You are provided reference images in this order:
+1) blank canvas
+2) bride face
+3) groom face
+4) guest face
+5) style reference
 
-      "ABSOLUTE RULES:\n" +
-      "- EXACTLY three people only. No extra people, no crowd, no silhouettes, no reflections with people.\n" +
-      "- Preserve each person's identity from their reference images (1–3). They must be instantly recognizable.\n" +
-      "- Do not merge faces, do not swap faces, do not average faces.\n" +
-      "- Do not beautify/idealize or change ethnicity.\n\n" +
+PRIORITY:
+- preserve identity of bride, groom, guest
+- match style reference illustration look
+- cheerful expressions
 
-      "COMPOSITION (match the style reference):\n" +
-      "- Bride on LEFT, Guest in CENTER, Groom on RIGHT\n" +
-      "- Close photobooth framing (upper body / shoulders), faces large in frame\n" +
-      "- Warm sunset coastal lighting, painterly-polished caricature look\n\n" +
+RULES:
+- EXACTLY three people
+- bride left, guest center, groom right
+- no extra people or silhouettes
+- no face merging or swapping
+- preserve facial geometry and ethnicity
 
-      "EXPRESSIONS (must be consistent):\n" +
-      "- Bride: big cheerful smile, joyful\n" +
-      "- Groom: big cheerful smile, happy and confident\n" +
-      "- Guest: friendly natural smile\n\n" +
+EXPRESSIONS:
+Bride and Groom: big cheerful smiles
+Guest: friendly smile
 
-      "OUTFITS:\n" +
-      "- Bride: white wedding dress\n" +
-      "- Groom: black tuxedo, white shirt, black bow tie\n" +
-      "- Guest: formal wedding attire (neutral)\n\n" +
+CARICATURE STYLE:
+- slightly larger heads
+- polished illustration
+- warm sunset tones
 
-      "SETTING:\n" +
-      "Raouche Rock terrace, Beirut. Mediterranean Sea background. Warm sunset atmosphere.\n" +
-      "Keep background similar in vibe to style reference; faces are the priority.\n\n" +
-
-      "CARICATURE LIMITS (to protect likeness):\n" +
-      "- Caricature ONLY through slightly larger heads relative to bodies and slightly amplified smiles.\n" +
-      "- Do NOT alter facial geometry (eye spacing, nose shape, jawline, lip shape). Preserve asymmetry.\n\n" +
-
-      "NEGATIVE:\n" +
-      "extra people, crowd, silhouettes, reflections with people, merged faces, swapped faces, generic faces,\n" +
-      "beautified faces, plastic skin, anime, pixar, heavy distortion, deformed anatomy, extra limbs/fingers,\n" +
-      "changing eye spacing, changing nose shape, changing jawline.";
+SETTING:
+Raouche Rock Beirut coastline at sunset.
+`;
 
     const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
     const parts = [];
@@ -101,105 +83,77 @@ export default async function handler(req, res) {
       );
     }
 
-    function addFile(name, filename, contentType, buffer) {
+    function addFile(name, filename, type, buffer) {
       parts.push(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${type}\r\n\r\n`
       );
       parts.push(buffer);
       parts.push("\r\n");
     }
 
+    // REQUIRED
     addField("model", "gpt-image-1");
     addField("prompt", prompt);
     addField("size", "1536x1024");
     addField("quality", "high");
 
-    // Upload in the exact order described in the prompt:
+    // 1️⃣ blank base canvas (IMPORTANT)
+    const blank = Buffer.alloc(1536 * 1024 * 3, 255);
+    addFile("image[]", "base.png", "image/png", blank);
 
-    // 1) Bride (FACE CROP)
-    if (BRIDE_PHOTO_URL) {
-      const brideRes = await fetch(faceCropUrl(BRIDE_PHOTO_URL));
-      if (brideRes.ok) {
-        const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
-        addFile("image[]", "bride-face.jpg", "image/jpeg", brideBuffer);
-      } else {
-        console.warn("Bride photo fetch failed:", brideRes.status);
-      }
-    } else {
-      console.warn("Missing BRIDE_PHOTO_URL");
-    }
+    // 2️⃣ bride
+    const brideRes = await fetch(faceCrop(BRIDE_PHOTO_URL));
+    const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
+    addFile("image[]", "bride.jpg", "image/jpeg", brideBuffer);
 
-    // 2) Groom (FACE CROP)
-    if (GROOM_PHOTO_URL) {
-      const groomRes = await fetch(faceCropUrl(GROOM_PHOTO_URL));
-      if (groomRes.ok) {
-        const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
-        addFile("image[]", "groom-face.jpg", "image/jpeg", groomBuffer);
-      } else {
-        console.warn("Groom photo fetch failed:", groomRes.status);
-      }
-    } else {
-      console.warn("Missing GROOM_PHOTO_URL");
-    }
+    // 3️⃣ groom
+    const groomRes = await fetch(faceCrop(GROOM_PHOTO_URL));
+    const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
+    addFile("image[]", "groom.jpg", "image/jpeg", groomBuffer);
 
-    // 3) Guest (ideally supply a face-forward selfie; your base64 might be wide)
+    // 4️⃣ guest
     const base64Data = guestPhoto.split(",")[1] || guestPhoto;
     const guestBuffer = Buffer.from(base64Data, "base64");
     addFile("image[]", "guest.png", "image/png", guestBuffer);
 
-    // 4) Style reference (your “closest” sample)
+    // 5️⃣ style reference (optional but powerful)
     if (STYLE_REF_URL) {
-      const styleRes = await fetch(styleResizeUrl(STYLE_REF_URL));
-      if (styleRes.ok) {
-        const styleBuffer = Buffer.from(await styleRes.arrayBuffer());
-        addFile("image[]", "style-ref.jpg", "image/jpeg", styleBuffer);
-      } else {
-        console.warn("Style ref fetch failed:", styleRes.status);
-      }
-    } else {
-      console.warn("Missing STYLE_REF_URL (style anchoring will be weaker)");
+      const styleRes = await fetch(resize(STYLE_REF_URL));
+      const styleBuffer = Buffer.from(await styleRes.arrayBuffer());
+      addFile("image[]", "style.jpg", "image/jpeg", styleBuffer);
     }
 
     parts.push(`--${boundary}--\r\n`);
 
-    const bodyParts = parts.map((p) =>
-      typeof p === "string" ? Buffer.from(p, "utf-8") : p
+    const body = Buffer.concat(
+      parts.map(p => (typeof p === "string" ? Buffer.from(p) : p))
     );
-    const bodyBuffer = Buffer.concat(bodyParts);
 
-    const openaiRes = await fetch("https://api.openai.com/v1/images/generations", {
+    const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
       },
-      body: bodyBuffer,
+      body,
     });
 
     if (!openaiRes.ok) {
-      const errData = await openaiRes.json().catch(() => ({}));
-      console.error("OpenAI image error:", JSON.stringify(errData));
-      return res.status(502).json({
-        error: errData?.error?.message || "AI generation failed",
-      });
+      const err = await openaiRes.text();
+      console.error(err);
+      return res.status(500).json({ error: err });
     }
 
     const data = await openaiRes.json();
     const img = data.data?.[0];
 
     if (img?.b64_json) {
-      return res
-        .status(200)
-        .json({ image: `data:image/png;base64,${img.b64_json}` });
-    } else if (img?.url) {
-      return res.status(200).json({ image: img.url });
-    } else {
-      return res.status(502).json({ error: "No image returned" });
+      return res.json({ image: `data:image/png;base64,${img.b64_json}` });
     }
+
+    return res.status(500).json({ error: "No image returned" });
   } catch (err) {
-    console.error("Generate error:", err);
-    return res
-      .status(500)
-      .json({ error: "Something went wrong. Please try again." });
+    console.error(err);
+    res.status(500).json({ error: "Generation failed" });
   }
 }
