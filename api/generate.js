@@ -34,8 +34,8 @@ export default async function handler(req, res) {
       ? guestPhoto
       : `data:image/png;base64,${guestPhoto}`;
 
-    // Create prediction with Flux 2 Pro (official model endpoint)
-    const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions", {
+    // Create prediction with Flux 2 Max (official model endpoint)
+    const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-2-max/predictions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
@@ -45,22 +45,26 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         input: {
           prompt:
-            "A stunning photorealistic wedding portrait photograph of exactly three people. " +
-            "The person from image 1 is the BRIDE — preserve her exact face, skin tone, hair color, hairstyle, facial structure, eyes, nose, and all distinguishing features with photographic accuracy. She is wearing a gorgeous flowing white wedding dress with elegant lace details. " +
-            "The person from image 2 is the GROOM — preserve his exact face, skin tone, hair color, hairstyle, facial structure, eyes, nose, and all distinguishing features with photographic accuracy. He is wearing a sharp tailored black tuxedo with a white dress shirt and bow tie. " +
-            "The person from image 3 is a WEDDING GUEST — preserve their exact face, skin tone, hair color, hairstyle, facial structure, eyes, nose, and all distinguishing features with photographic accuracy. They are wearing stylish formal wedding attire. " +
-            "The bride is on the left, the guest is in the middle, and the groom is on the right. All three standing close together, smiling warmly and naturally at the camera. " +
-            "They are standing on a beautiful terrace overlooking the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon. The Mediterranean Sea is deep blue behind them, with the dramatic natural stone arch clearly visible. " +
+            "A stunning photorealistic wedding portrait photograph of the three people provided in the reference images. " +
+            "The bride from image 1 is on the left — preserve her exact face, skin tone, hair color, hairstyle, and all facial features. She is wearing a gorgeous flowing white wedding dress with elegant lace details. " +
+            "The groom from image 2 is on the right — preserve his exact face, skin tone, hair color, hairstyle, and all facial features. He is wearing a sharp tailored black tuxedo with a white dress shirt and bow tie. " +
+            "The wedding guest from image 3 is in the middle — preserve their exact face, skin tone, hair color, hairstyle, and all facial features. They are wearing stylish formal wedding attire. " +
+            "All three standing close together, smiling warmly and naturally at the camera. " +
+            "They are on a beautiful terrace overlooking the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon. The Mediterranean Sea is deep blue behind them with the dramatic natural stone arch clearly visible. " +
             "Golden hour sunset lighting with warm orange and pink tones. " +
             "At the top of the image, elegant text reads: \"Can't wait to celebrate with you\" in a beautiful script calligraphy font. " +
             "At the bottom, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
-            "Professional wedding photography, shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field, natural skin textures, real hair strands, authentic fabric details, cinematic warm color grading. Photorealistic, not illustration.",
-          input_image: resizeUrl(BRIDE_PHOTO_URL),
-          input_image_2: resizeUrl(GROOM_PHOTO_URL),
-          input_image_3: guestDataUri,
+            "Professional wedding photography, Canon EOS R5, 85mm f/1.4 lens, shallow depth of field, natural skin textures, cinematic warm color grading. Hyper-realistic photography.",
+          input_images: [
+            resizeUrl(BRIDE_PHOTO_URL),
+            resizeUrl(GROOM_PHOTO_URL),
+            guestDataUri,
+          ],
           aspect_ratio: "16:9",
           output_format: "png",
           output_quality: 90,
+          mode: "raw",
+          guidance: 3.5,
         },
       }),
     });
