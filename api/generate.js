@@ -2,6 +2,15 @@ export const config = { maxDuration: 60 };
 
 const PIAPI_URL = "https://api.piapi.ai/api/v1/task";
 
+// Add Cloudinary resize transform to keep images under 2048x2048
+function resizeCloudinaryUrl(url) {
+  if (!url) return url;
+  if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+    return url.replace("/upload/", "/upload/c_limit,w_2048,h_2048/");
+  }
+  return url;
+}
+
 async function createSwapTask(apiKey, swapImage, targetImage, swapIndex, targetIndex) {
   const res = await fetch(PIAPI_URL, {
     method: "POST",
@@ -48,11 +57,9 @@ async function pollTask(apiKey, taskId, maxWait = 30000) {
     const status = data?.data?.status;
 
     if (status === "completed") {
-      // Get the output image URL
       const output = data?.data?.output;
       if (output?.image_url) return output.image_url;
       if (typeof output === "string") return output;
-      // Try other possible output formats
       if (output?.images?.[0]) return output.images[0];
       if (Array.isArray(output) && output[0]) return output[0];
       console.error("Unexpected output format:", JSON.stringify(data?.data));
@@ -91,6 +98,11 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing template photo URL" });
   }
 
+  // Resize all Cloudinary URLs to fit within 2048x2048
+  const templateUrl = resizeCloudinaryUrl(TEMPLATE_PHOTO_URL);
+  const brideUrl = resizeCloudinaryUrl(BRIDE_PHOTO_URL);
+  const groomUrl = resizeCloudinaryUrl(GROOM_PHOTO_URL);
+
   try {
     // Template photo layout (left to right):
     // Position 0 = Bride
@@ -101,10 +113,10 @@ export default async function handler(req, res) {
     console.log("Step 1: Swapping bride face...");
     const task1 = await createSwapTask(
       PIAPI_KEY,
-      BRIDE_PHOTO_URL,
-      TEMPLATE_PHOTO_URL,
-      0, // face 0 from bride photo
-      0  // onto position 0 (left) in template
+      brideUrl,
+      templateUrl,
+      0,
+      0
     );
     const result1 = await pollTask(PIAPI_KEY, task1);
     console.log("Step 1 done:", result1);
@@ -113,10 +125,10 @@ export default async function handler(req, res) {
     console.log("Step 2: Swapping groom face...");
     const task2 = await createSwapTask(
       PIAPI_KEY,
-      GROOM_PHOTO_URL,
-      result1,   // use result from step 1
-      0,         // face 0 from groom photo
-      2          // onto position 2 (right) in template
+      groomUrl,
+      result1,
+      0,
+      2
     );
     const result2 = await pollTask(PIAPI_KEY, task2);
     console.log("Step 2 done:", result2);
@@ -125,10 +137,10 @@ export default async function handler(req, res) {
     console.log("Step 3: Swapping guest face...");
     const task3 = await createSwapTask(
       PIAPI_KEY,
-      guestPhoto, // guest selfie (base64 data URL)
-      result2,    // use result from step 2
-      0,          // face 0 from guest selfie
-      1           // onto position 1 (middle) in template
+      guestPhoto,
+      result2,
+      0,
+      1
     );
     const result3 = await pollTask(PIAPI_KEY, task3);
     console.log("Step 3 done:", result3);
