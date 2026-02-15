@@ -40,7 +40,7 @@ async function createSwapTask(apiKey, swapImage, targetImage, swapIndex, targetI
   return data?.data?.task_id;
 }
 
-async function pollTask(apiKey, taskId, maxWait = 30000) {
+async function pollTask(apiKey, taskId, maxWait = 90000) {
   const start = Date.now();
 
   while (Date.now() - start < maxWait) {
