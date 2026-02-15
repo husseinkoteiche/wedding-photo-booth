@@ -49,21 +49,17 @@ export default async function handler(req, res) {
     addField("model", "gpt-image-1.5");
     addField(
       "prompt",
-      "PHOTOREALISTIC PHOTOGRAPH. This must look like a real photograph taken with a camera — NOT a painting, NOT a cartoon, NOT an illustration, NOT digital art. " +
-        "Create an ultra-realistic, authentic wedding portrait photograph of exactly THREE people. " +
-        "Image 1 is the BRIDE: replicate her EXACT face, skin tone, hair color, hairstyle, facial structure, nose, eyes, and all features with photographic precision. " +
-        "She is wearing a gorgeous flowing white wedding dress with elegant lace details. " +
-        "Image 2 is the GROOM: replicate his EXACT face, skin tone, hair color, hairstyle, facial structure, nose, eyes, and all features with photographic precision. " +
-        "He is wearing a sharp tailored black tuxedo with a white dress shirt and bow tie. " +
-        "Image 3 is a WEDDING GUEST: replicate their EXACT face, skin tone, hair color, hairstyle, facial structure, nose, eyes, and all features with photographic precision. " +
-        "They are wearing stylish formal wedding guest attire. " +
-        "ALL THREE are standing close together on a beautiful terrace overlooking the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon. " +
-        "The Mediterranean Sea is a deep gorgeous blue behind them, with the dramatic natural stone arch of Raouche clearly visible. " +
-        "Golden hour sunset lighting bathes the scene in warm orange and pink tones. " +
-        "They are smiling warmly and naturally at the camera. " +
-        "This is a REAL PHOTOGRAPH: natural skin pores, subtle skin texture, real hair strands, natural eye reflections, authentic fabric wrinkles. " +
-        "Shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field with creamy bokeh. " +
-        "Natural wedding photography lighting, warm golden tones, no artificial or painted look whatsoever."
+      "Create a fun, vibrant wedding caricature illustration in a premium cartoon style. " +
+        "There are exactly THREE people in this image: " +
+        "Image 1 is the BRIDE — draw her as a stylized caricature but KEEP her recognizable facial features: her exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. She is wearing a beautiful white wedding dress. " +
+        "Image 2 is the GROOM — draw him as a stylized caricature but KEEP his recognizable facial features: his exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. He is wearing a sharp black tuxedo with a bow tie. " +
+        "Image 3 is a WEDDING GUEST — draw them as a stylized caricature but KEEP their recognizable facial features: their exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. They are wearing stylish formal attire. " +
+        "The bride is on the left, the guest is in the middle, and the groom is on the right. All three are standing close together, smiling and happy. " +
+        "The background is a beautiful illustrated scene of the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, drawn in the same stylized cartoon style with warm sunset colors. " +
+        "At the TOP of the image, there is elegant decorative text that reads: \"Can't wait to celebrate with you\" in a beautiful script/calligraphy font. " +
+        "At the BOTTOM of the image, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
+        "Style: Premium wedding caricature art, clean lines, vibrant warm colors, playful but elegant, slightly exaggerated proportions with big heads and expressive faces. " +
+        "The overall mood should be joyful, celebratory, and romantic with a warm color palette of golds, pinks, and sunset oranges."
     );
     addField("size", "1536x1024");
     addField("quality", "medium");
