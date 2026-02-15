@@ -48,13 +48,12 @@ export default function App() {
     setCameraReady(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+        video: { facingMode: "user", width: { ideal: 800 }, height: { ideal: 800 } },
         audio: false,
       });
       streamRef.current = stream;
       setStep(STEPS.CAMERA);
 
-      // Wait a tick for the video element to mount, then attach stream
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -86,22 +85,22 @@ export default function App() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (video && canvas && video.videoWidth > 0) {
-// Resize to max 1024px to stay under API limits
-        const maxSize = 1024;
-        let w = video.videoWidth;
-        let h = video.videoHeight;
-        if (w > h && w > maxSize) {
-          h = Math.round(h * maxSize / w);
-          w = maxSize;
-        } else if (h > maxSize) {
-          w = Math.round(w * maxSize / h);
-          h = maxSize;
+        // Force resize to max 800px on any side
+        const MAX = 800;
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        let w, h;
+        if (vw >= vh) {
+          w = Math.min(vw, MAX);
+          h = Math.round((vh / vw) * w);
+        } else {
+          h = Math.min(vh, MAX);
+          w = Math.round((vw / vh) * h);
         }
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d");
-        // Mirror the image to match what they see
-        ctx.translate(canvas.width, 0);
+        ctx.translate(w, 0);
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, w, h);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -126,7 +125,7 @@ export default function App() {
     setLoadingMsg(0);
 
     try {
-const res = await fetch("/api/generate", {
+      const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ guestPhoto: guestDataUrl }),
@@ -249,7 +248,6 @@ const res = await fetch("/api/generate", {
         padding: "0 20px", flex: 1, display: "flex", flexDirection: "column",
       }}>
 
-        {/* WELCOME */}
         {step === STEPS.WELCOME && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
@@ -299,7 +297,6 @@ const res = await fetch("/api/generate", {
           </div>
         )}
 
-        {/* CAMERA */}
         {step === STEPS.CAMERA && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
@@ -370,7 +367,6 @@ const res = await fetch("/api/generate", {
           </div>
         )}
 
-        {/* GENERATING */}
         {step === STEPS.GENERATING && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
@@ -405,7 +401,6 @@ const res = await fetch("/api/generate", {
           </div>
         )}
 
-        {/* RESULT */}
         {step === STEPS.RESULT && result && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
