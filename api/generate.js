@@ -28,18 +28,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("Generating caricature...");
+    console.log("Generating image...");
 
     const prompt =
-      "A professional, high-end digital wedding caricature with EXACT identity matching. " +
-      "SCENE COMPOSITION: A panoramic 16:9 trio portrait. " +
-      "1. THE BRIDE (Referencing Image 0): Positioned on the left. Use the exact facial geometry, eye shape, and smile from Image 0. Hair must be styled exactly as in the reference but rendered in a clean digital paint style. She wears a premium white lace wedding dress. " +
-      "2. THE GROOM (Referencing Image 1): Positioned on the right. Transfer the exact jawline, nose shape, and grooming from Image 1. He wears a sharp, tailored black tuxedo with a satin bow tie. " +
-      "3. THE GUEST (Referencing Image 2): Positioned in the center. This is a 1:1 identity lock. Preserve the guest's specific eye-folds, unique nose structure, and hairstyle from Image 2. Do not generalize; maintain their specific ethnicity and facial character. " +
-      "ARTISTIC STYLE: 'Elegant Digital Caricature.' Use clean vector-like lines, smooth shading, and professional color grading. Exaggerate only the head-to-body ratio (60/40), but KEEP facial features anatomically consistent with the references. No generic cartoon faces. " +
-      "ENVIRONMENT: Iconic Raouche Rock in Beirut. The sea must show realistic sunset reflections. Golden hour lighting (5500K) illuminating the subjects' faces from the side. " +
-      "TEXT RENDERING: At the top, 'Can't wait to celebrate with you' in a high-contrast white calligraphy script. At the bottom, 'Hussein & Shahd — May 29, 2026' in a minimalist serif font. " +
-      "TECHNICAL: 8k resolution, deep depth of field, vibrant saturation, high-fidelity detail preservation.";
+      "A hyper-realistic 8K RAW wide-angle photograph of EXACTLY three humans: Subject 0, Subject 1, and Subject 2. NO OTHER PEOPLE ARE PRESENT. " +
+      "PERSON 0 (BRIDE): Positioned on the left. This is a pixel-perfect restoration of the woman in @image0. Lock the bone structure, exact eye geometry, and lip shape from @image0. She is wearing a white silk wedding dress. " +
+      "PERSON 1 (GROOM): Positioned on the right. This is a pixel-perfect restoration of the man in @image1. Lock the exact jawline, facial hair density, and nose structure from @image1. He is wearing a tailored black tuxedo. " +
+      "PERSON 2 (GUEST): Positioned in the center. This is a 1:1 identity transfer of the person in @image2. Replicate their exact skin pores, eye reflections, and unique facial character from @image2 with 100% fidelity. " +
+      "SETTING: An empty stone terrace at the Raouche Rock, Beirut. The Mediterranean Sea is in the background. " +
+      "CAMERA SPECS: Shot on Hasselblad X2D, 80mm lens, f/2.8. Sharp focus on all three faces. Natural skin textures, real hair strands, NO AI smoothing. " +
+      "TEXT: 'Can\\'t wait to celebrate with you' at the top in white calligraphy. 'Hussein & Shahd — May 29, 2026' in a small serif font at the bottom center.";
 
     const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
     const parts = [];
@@ -63,7 +61,7 @@ export default async function handler(req, res) {
     addField("size", "1536x1024");
     addField("quality", "medium");
 
-    // Image 0: Bride
+    // @image0: Bride
     if (BRIDE_PHOTO_URL) {
       const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
       if (brideRes.ok) {
@@ -72,7 +70,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Image 1: Groom
+    // @image1: Groom
     if (GROOM_PHOTO_URL) {
       const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
       if (groomRes.ok) {
@@ -81,7 +79,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Image 2: Guest
+    // @image2: Guest
     const base64Data = guestPhoto.split(",")[1] || guestPhoto;
     const guestBuffer = Buffer.from(base64Data, "base64");
     addFile("image[]", "guest.png", "image/png", guestBuffer);
