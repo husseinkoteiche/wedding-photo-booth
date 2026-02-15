@@ -1,6 +1,6 @@
 export const config = { maxDuration: 300 };
 
-// Pre-analyzed descriptions — no vision call needed for bride & groom
+// Pre-analyzed descriptions — no vision call needed
 const BRIDE_DESC =
   "Oval-to-long face shape with softly tapered sides and a gently narrowing lower third. Light to light-medium skin with a neutral-warm olive-beige undertone, smooth with a natural matte finish and faint warmth across the cheeks. Moderately high and broad forehead with a centered clean hairline. Hair is medium to dark chestnut brown with subtle warm undertones, worn long past the shoulders — thick, voluminous, softly layered in loose smooth waves with rounded ends, parted near center with natural body and lift at the crown. Eyebrows are dark brown, full, dense with a straight inner portion transitioning into a gentle defined arch and tapering neatly toward the tail. Eyes are medium-sized almond-shaped with softly rounded lower lids and slightly hooded upper lids, hazel-green irises with muted earthy tones, framed by dark upper lash lines and moderately long naturally curved eyelashes. Nose is straight and refined with a narrow bridge widening subtly toward midsection, softly rounded tip. Cheekbones moderately prominent and high with mild natural fullness. Lips medium fullness with defined cupid's bow, upper lip slightly thinner than the fuller rounded lower lip, natural rose-pink color. Chin softly rounded, smooth gently defined feminine jawline. Strong well-defined eyebrows, clear hazel eyes, smooth olive-toned skin, and thick softly waved chestnut hair framing the face.";
 
@@ -35,72 +35,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const guestDataUri = guestPhoto.startsWith("data:")
-      ? guestPhoto
-      : `data:image/png;base64,${guestPhoto.includes(",") ? guestPhoto.split(",")[1] : guestPhoto}`;
-
     // ============================================================
-    // STEP 1: Quick GPT-4o vision call — ONLY the guest photo
-    // Bride & groom descriptions are pre-baked above
+    // Single call — detailed bride/groom descriptions are pre-baked
+    // Guest identity comes from the reference photo (Image 3)
     // ============================================================
-    console.log("Step 1: Analyzing guest face with GPT-4o vision...");
-
-    let guestDesc = "a wedding guest";
-
-    try {
-      const visionRes = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You are a portrait description specialist. Analyze the photo and produce an extremely detailed physical description. Describe: exact face shape, skin tone and undertone, hair color/style/length/texture/volume/parting, forehead, eyebrow shape/thickness/color/arch, eye shape/size/color/spacing, eyelashes, nose bridge/length/tip shape, cheekbone prominence, cheek fullness, lip shape/fullness/color, chin shape, jawline, facial hair if any, ear visibility, and any distinguishing features like dimples, freckles, moles, beauty marks, glasses, smile lines. Describe their expression and teeth if visible. Write one dense paragraph — be as specific as a forensic sketch artist.",
-              },
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: "Describe this person's physical appearance in extreme detail for recreating their face in a caricature. One dense paragraph:",
-                  },
-                  {
-                    type: "image_url",
-                    image_url: { url: guestDataUri, detail: "high" },
-                  },
-                ],
-              },
-            ],
-            max_tokens: 500,
-            temperature: 0.2,
-          }),
-        }
-      );
-
-      if (visionRes.ok) {
-        const visionData = await visionRes.json();
-        guestDesc = visionData.choices?.[0]?.message?.content || guestDesc;
-        console.log("Guest description:", guestDesc.substring(0, 100) + "...");
-      } else {
-        const err = await visionRes.json().catch(() => ({}));
-        console.error("Vision failed, using fallback:", JSON.stringify(err));
-      }
-    } catch (visionErr) {
-      console.error("Vision call error:", visionErr.message);
-    }
-
-    // ============================================================
-    // STEP 2: Generate caricature with all 3 detailed descriptions
-    // + original reference photos
-    // ============================================================
-    console.log("Step 2: Generating caricature...");
+    console.log("Generating caricature...");
 
     const prompt =
       "Create a premium wedding caricature illustration of EXACTLY three people. " +
@@ -112,10 +51,8 @@ export default async function handler(req, res) {
       "ON THE RIGHT — THE GROOM (from Image 2): " +
       GROOM_DESC +
       " He wears a sharp black tuxedo with a crisp white dress shirt and black bow tie. " +
-      "IN THE CENTER — THE WEDDING GUEST (from Image 3): " +
-      guestDesc +
-      " They wear stylish formal wedding attire. " +
-      "Each caricature MUST be immediately recognizable as the person in their reference photo. Preserve their EXACT skin tone, hair color/style, eye color, face shape, nose shape, and all distinguishing features. Only exaggerate proportions for caricature effect — never change their actual features. " +
+      "IN THE CENTER — THE WEDDING GUEST (from Image 3): Study the guest's reference photo extremely carefully. Preserve their EXACT face shape, skin tone, hair color and style, eye color and shape, nose shape, lip shape, jawline, and every distinguishing feature (glasses, facial hair, beauty marks, dimples, freckles, etc). The caricature must be immediately recognizable as this specific person. They wear stylish formal wedding attire. " +
+      "Each caricature MUST be immediately recognizable as the person in their reference photo. Preserve EXACT skin tones, hair color/style, eye color, face shape, nose shape, and all distinguishing features. Only exaggerate proportions for caricature effect — never change their actual features. " +
       "POSE: All three standing close together, arms around each other, genuinely smiling and radiating joy. " +
       "BACKGROUND: Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, illustrated in the same warm caricature style with a breathtaking golden hour sunset. " +
       'TEXT: Elegant decorative script at the top: "Can\'t wait to celebrate with you" — ' +
@@ -142,7 +79,7 @@ export default async function handler(req, res) {
     addField("model", "gpt-image-1");
     addField("prompt", prompt);
     addField("size", "1536x1024");
-    addField("quality", "high");
+    addField("quality", "medium");
 
     // Attach bride photo
     if (BRIDE_PHOTO_URL) {
