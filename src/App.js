@@ -86,8 +86,19 @@ export default function App() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (video && canvas && video.videoWidth > 0) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+// Resize to max 1024px to stay under API limits
+        const maxSize = 1024;
+        let w = video.videoWidth;
+        let h = video.videoHeight;
+        if (w > h && w > maxSize) {
+          h = Math.round(h * maxSize / w);
+          w = maxSize;
+        } else if (h > maxSize) {
+          w = Math.round(w * maxSize / h);
+          h = maxSize;
+        }
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext("2d");
         // Mirror the image to match what they see
         ctx.translate(canvas.width, 0);
