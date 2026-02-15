@@ -19,6 +19,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing API key" });
   }
 
+  // Add Cloudinary resize to keep images under limits
   function resizeUrl(url) {
     if (!url) return url;
     if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
@@ -28,74 +29,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("Generating image...");
-
-    const prompt =
-      "Create a wedding photobooth CARICATURE illustration with EXACTLY three people and ZERO extras.\n" +
-      "PRIORITY ORDER (do not violate):\n" +
-      "1) Identity likeness to reference images\n" +
-      "2) Correct subject count + left/center/right placement\n" +
-      "3) Wedding outfits + cheerful expressions\n" +
-      "4) Caricature rendering style (ONLY head-to-body exaggeration, NOT facial geometry changes)\n" +
-      "5) Background/location\n" +
-      "6) Text overlay (lowest priority)\n" +
-      "HARD CONSTRAINTS:\n" +
-      "- Only three humans: Subject 0, Subject 2, Subject 1. No other people, no silhouettes, no reflections of people.\n" +
-      "- Do not blend faces. Do not average faces. Do not swap faces between subjects.\n" +
-      "- Do not beautify, \"idealize,\" or change ethnicity.\n" +
-      "- Do not alter facial geometry beyond what is necessary to match the references.\n" +
-      "SUBJECT PLACEMENT (must match):\n" +
-      "Left: Subject 0 (Bride)\n" +
-      "Center: Subject 2 (Guest)\n" +
-      "Right: Subject 1 (Groom)\n" +
-      "--------------------------------\n" +
-      "SUBJECT 0 (BRIDE, LEFT) — IDENTITY LOCK\n" +
-      "Reference: @image0\n" +
-      "Reconstruct her face to match @image0 with maximum fidelity:\n" +
-      "- keep the same facial proportions, eye spacing, eyelid shape, nose shape, lip shape, chin shape, and cheekbone width\n" +
-      "- preserve unique asymmetry and distinctive features exactly\n" +
-      "Expression: BIG CHEERFUL SMILE, joyful, wedding-day excitement\n" +
-      "Outfit: elegant white silk wedding dress\n" +
-      "--------------------------------\n" +
-      "SUBJECT 1 (GROOM, RIGHT) — IDENTITY LOCK\n" +
-      "Reference: @image1\n" +
-      "Reconstruct his face to match @image1 with maximum fidelity:\n" +
-      "- keep the same jawline, chin projection, nose structure, brow shape, and facial hair pattern/density\n" +
-      "- preserve unique asymmetry and distinctive features exactly\n" +
-      "Expression: BIG CHEERFUL SMILE, happy and confident\n" +
-      "Outfit: tailored black tuxedo, white shirt, black bow tie\n" +
-      "--------------------------------\n" +
-      "SUBJECT 2 (GUEST, CENTER) — IDENTITY LOCK\n" +
-      "Reference: @image2\n" +
-      "Reconstruct their face to match @image2 with maximum fidelity:\n" +
-      "- preserve defining facial features and asymmetry exactly\n" +
-      "Expression: friendly natural smile\n" +
-      "Outfit: wedding-appropriate formal attire (neutral and elegant)\n" +
-      "--------------------------------\n" +
-      "CARICATURE RENDERING (LIKELINESS-SAFE)\n" +
-      "This is a caricature ONLY by:\n" +
-      "- slightly larger heads relative to bodies (photobooth caricature)\n" +
-      "- slightly amplified smiles and cheek lift\n" +
-      "DO NOT change facial feature sizes, spacing, or bone structure.\n" +
-      "Style: clean professional caricature illustration, crisp linework, smooth shading, polished wedding-booth look.\n" +
-      "--------------------------------\n" +
-      "SETTING\n" +
-      "Raouche Rock terrace, Beirut.\n" +
-      "Empty stone terrace. Mediterranean Sea in the background. Warm sunset atmosphere.\n" +
-      "No crowds. No background people. No props that block faces.\n" +
-      "--------------------------------\n" +
-      "TEXT OVERLAY (LOWEST PRIORITY)\n" +
-      "Top in white calligraphy: \"Can't wait to celebrate with you\"\n" +
-      "Bottom center in small serif: \"Hussein & Shahd — May 29, 2026\"\n" +
-      "\n" +
-      "NEGATIVE / AVOID:\n" +
-      "extra people, background people, crowd, silhouette, reflection people,\n" +
-      "face blending, face merge, averaged face, swapped faces,\n" +
-      "generic handsome face, generic beautiful face, beautified,\n" +
-      "anime, pixar, doll-like, plastic skin, airbrushed, smooth skin,\n" +
-      "wrong ethnicity, altered jawline, altered nose, altered eye spacing,\n" +
-      "deformed hands, extra fingers, warped mouth, crooked teeth";
-
     const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
     const parts = [];
 
@@ -113,12 +46,25 @@ export default async function handler(req, res) {
       parts.push("\r\n");
     }
 
-    addField("model", "gpt-image-1");
-    addField("prompt", prompt);
+    addField("model", "gpt-image-1.5");
+    addField(
+      "prompt",
+      "Create a fun, vibrant wedding caricature illustration in a premium cartoon style. " +
+        "There are exactly THREE people in this image: " +
+        "Image 1 is the BRIDE — draw her as a stylized caricature but KEEP her recognizable facial features: her exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. She is wearing a beautiful white wedding dress. " +
+        "Image 2 is the GROOM — draw him as a stylized caricature but KEEP his recognizable facial features: his exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. He is wearing a sharp black tuxedo with a bow tie. " +
+        "Image 3 is a WEDDING GUEST — draw them as a stylized caricature but KEEP their recognizable facial features: their exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. They are wearing stylish formal attire. " +
+        "The bride is on the left, the guest is in the middle, and the groom is on the right. All three are standing close together, smiling and happy. " +
+        "The background is a beautiful illustrated scene of the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, drawn in the same stylized cartoon style with warm sunset colors. " +
+        "At the TOP of the image, there is elegant decorative text that reads: \"Can't wait to celebrate with you\" in a beautiful script/calligraphy font. " +
+        "At the BOTTOM of the image, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
+        "Style: Premium wedding caricature art, clean lines, vibrant warm colors, playful but elegant, slightly exaggerated proportions with big heads and expressive faces. " +
+        "The overall mood should be joyful, celebratory, and romantic with a warm color palette of golds, pinks, and sunset oranges."
+    );
     addField("size", "1536x1024");
     addField("quality", "medium");
 
-    // @image0: Bride
+    // Fetch and attach bride photo
     if (BRIDE_PHOTO_URL) {
       const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
       if (brideRes.ok) {
@@ -127,7 +73,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // @image1: Groom
+    // Fetch and attach groom photo
     if (GROOM_PHOTO_URL) {
       const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
       if (groomRes.ok) {
@@ -136,18 +82,20 @@ export default async function handler(req, res) {
       }
     }
 
-    // @image2: Guest
-    const base64Data = guestPhoto.split(",")[1] || guestPhoto;
+    // Guest selfie from base64
+    const base64Data = guestPhoto.split(",")[1];
     const guestBuffer = Buffer.from(base64Data, "base64");
     addFile("image[]", "guest.png", "image/png", guestBuffer);
 
     parts.push(`--${boundary}--\r\n`);
 
+    // Combine all parts into a single Buffer
     const bodyParts = parts.map((p) =>
       typeof p === "string" ? Buffer.from(p, "utf-8") : p
     );
     const bodyBuffer = Buffer.concat(bodyParts);
 
+    // Call OpenAI
     const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: {
@@ -159,7 +107,7 @@ export default async function handler(req, res) {
 
     if (!openaiRes.ok) {
       const errData = await openaiRes.json().catch(() => ({}));
-      console.error("OpenAI image error:", JSON.stringify(errData));
+      console.error("OpenAI error:", JSON.stringify(errData));
       return res.status(502).json({
         error: errData?.error?.message || "AI generation failed",
       });
@@ -169,9 +117,7 @@ export default async function handler(req, res) {
     const img = data.data?.[0];
 
     if (img?.b64_json) {
-      return res
-        .status(200)
-        .json({ image: `data:image/png;base64,${img.b64_json}` });
+      return res.status(200).json({ image: `data:image/png;base64,${img.b64_json}` });
     } else if (img?.url) {
       return res.status(200).json({ image: img.url });
     } else {
@@ -179,8 +125,6 @@ export default async function handler(req, res) {
     }
   } catch (err) {
     console.error("Generate error:", err);
-    return res
-      .status(500)
-      .json({ error: "Something went wrong. Please try again." });
+    return res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 }
