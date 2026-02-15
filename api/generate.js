@@ -49,21 +49,21 @@ export default async function handler(req, res) {
     addField("model", "gpt-image-1.5");
     addField(
       "prompt",
-      "Create a stunning, joyful wedding portrait photograph of THREE people. " +
-        "IMPORTANT: The three people in this photo must have the EXACT faces from the three reference images provided. " +
-        "Image 1 is the BRIDE: preserve her exact face, skin tone, hair color, hairstyle, and all facial features precisely. " +
+      "PHOTOREALISTIC PHOTOGRAPH. This must look like a real photograph taken with a camera — NOT a painting, NOT a cartoon, NOT an illustration, NOT digital art. " +
+        "Create an ultra-realistic, authentic wedding portrait photograph of exactly THREE people. " +
+        "Image 1 is the BRIDE: replicate her EXACT face, skin tone, hair color, hairstyle, facial structure, nose, eyes, and all features with photographic precision. " +
         "She is wearing a gorgeous flowing white wedding dress with elegant lace details. " +
-        "Image 2 is the GROOM: preserve his exact face, skin tone, hair color, hairstyle, and all facial features precisely. " +
+        "Image 2 is the GROOM: replicate his EXACT face, skin tone, hair color, hairstyle, facial structure, nose, eyes, and all features with photographic precision. " +
         "He is wearing a sharp tailored black tuxedo with a white dress shirt and bow tie. " +
-        "Image 3 is a WEDDING GUEST: preserve their exact face, skin tone, hair color, hairstyle, and all facial features precisely. " +
+        "Image 3 is a WEDDING GUEST: replicate their EXACT face, skin tone, hair color, hairstyle, facial structure, nose, eyes, and all features with photographic precision. " +
         "They are wearing stylish formal wedding guest attire. " +
         "ALL THREE are standing close together on a beautiful terrace overlooking the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon. " +
         "The Mediterranean Sea is a deep gorgeous blue behind them, with the dramatic natural stone arch of Raouche clearly visible. " +
         "Golden hour sunset lighting bathes the scene in warm orange and pink tones. " +
         "They are smiling warmly and naturally at the camera. " +
-        "Professional wedding photography quality, shot on Canon EOS R5 with 50mm f/1.4 lens, " +
-        "shallow depth of field with the Raouche rock softly blurred in the background. " +
-        "Warm golden tones, natural skin textures, cinematic color grading."
+        "This is a REAL PHOTOGRAPH: natural skin pores, subtle skin texture, real hair strands, natural eye reflections, authentic fabric wrinkles. " +
+        "Shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field with creamy bokeh. " +
+        "Natural wedding photography lighting, warm golden tones, no artificial or painted look whatsoever."
     );
     addField("size", "1536x1024");
     addField("quality", "medium");
