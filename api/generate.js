@@ -1,12 +1,5 @@
 export const config = { maxDuration: 300 };
 
-// Pre-analyzed descriptions — no vision call needed
-const BRIDE_DESC =
-  "Oval-to-long face shape with softly tapered sides and a gently narrowing lower third. Light to light-medium skin with a neutral-warm olive-beige undertone, smooth with a natural matte finish and faint warmth across the cheeks. Moderately high and broad forehead with a centered clean hairline. Hair is medium to dark chestnut brown with subtle warm undertones, worn long past the shoulders — thick, voluminous, softly layered in loose smooth waves with rounded ends, parted near center with natural body and lift at the crown. Eyebrows are dark brown, full, dense with a straight inner portion transitioning into a gentle defined arch and tapering neatly toward the tail. Eyes are medium-sized almond-shaped with softly rounded lower lids and slightly hooded upper lids, hazel-green irises with muted earthy tones, framed by dark upper lash lines and moderately long naturally curved eyelashes. Nose is straight and refined with a narrow bridge widening subtly toward midsection, softly rounded tip. Cheekbones moderately prominent and high with mild natural fullness. Lips medium fullness with defined cupid's bow, upper lip slightly thinner than the fuller rounded lower lip, natural rose-pink color. Chin softly rounded, smooth gently defined feminine jawline. Strong well-defined eyebrows, clear hazel eyes, smooth olive-toned skin, and thick softly waved chestnut hair framing the face.";
-
-const GROOM_DESC =
-  "Long oval face with a slightly rectangular structure, straight vertical sides and a gently squared lower third with a firm masculine jawline. Light-to-medium skin with warm olive undertone, smooth with subtle natural sheen and faint redness across nose bridge and upper cheeks. Moderately high broad forehead with slightly uneven natural hairline. Hair is dark brown to nearly black, thick and dense, cut short on sides and back with more length on top — wavy and slightly tousled with natural texture, styled casually with subtle leftward sweep. Eyebrows are dark, thick, straight with mild natural arch toward outer third, full and prominent with squared inner edge. Eyes medium-sized almond-shaped with slightly heavy upper lids and straight lower lids, dark brown irises, short to moderate dark eyelashes. Nose is straight and prominent with medium-wide bridge, rounded tip with slight downward orientation, symmetrical nostrils. Cheekbones moderately defined but softened by facial hair. Full dense dark beard and mustache closely trimmed with uniform length following the jawline and chin with clean edges, mustache sitting just above upper lip. Lips medium width with modest fullness, upper lip thinner, lower lip slightly fuller, muted pink tone. Chin broad and rounded reinforced by beard, strong well-defined jawline beneath the beard. Thick dark eyebrows, deep-set brown eyes, strong nose bridge, and dense sharply contoured beard framing a defined jawline.";
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -35,29 +28,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ============================================================
-    // Single call — detailed bride/groom descriptions are pre-baked
-    // Guest identity comes from the reference photo (Image 3)
-    // ============================================================
     console.log("Generating caricature...");
 
     const prompt =
-      "Create a premium wedding caricature illustration of EXACTLY three people. " +
-      "STYLE: High-quality digital caricature — slightly exaggerated proportions (bigger heads, expressive eyes, warm smiles), clean lines, vibrant colors. Like a professional wedding caricature artist. Sophisticated and elegant, NOT childish cartoon, NOT anime. " +
-      "CRITICAL IDENTITY INSTRUCTIONS — each person MUST match their reference photo exactly: " +
-      "ON THE LEFT — THE BRIDE (from Image 1): " +
-      BRIDE_DESC +
-      " She wears a beautiful flowing white wedding dress with delicate lace details, holding a small bouquet of flowers. " +
-      "ON THE RIGHT — THE GROOM (from Image 2): " +
-      GROOM_DESC +
-      " He wears a sharp black tuxedo with a crisp white dress shirt and black bow tie. " +
-      "IN THE CENTER — THE WEDDING GUEST (from Image 3): Study the guest's reference photo extremely carefully. Preserve their EXACT face shape, skin tone, hair color and style, eye color and shape, nose shape, lip shape, jawline, and every distinguishing feature (glasses, facial hair, beauty marks, dimples, freckles, etc). The caricature must be immediately recognizable as this specific person. They wear stylish formal wedding attire. " +
-      "Each caricature MUST be immediately recognizable as the person in their reference photo. Preserve EXACT skin tones, hair color/style, eye color, face shape, nose shape, and all distinguishing features. Only exaggerate proportions for caricature effect — never change their actual features. " +
-      "POSE: All three standing close together, arms around each other, genuinely smiling and radiating joy. " +
-      "BACKGROUND: Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, illustrated in the same warm caricature style with a breathtaking golden hour sunset. " +
-      'TEXT: Elegant decorative script at the top: "Can\'t wait to celebrate with you" — ' +
-      'Smaller elegant text at the bottom: "Hussein & Shahd — May 29, 2026" ' +
-      "COLORS: Warm golds, sunset oranges, soft pinks, romantic tones throughout.";
+      "A professional, high-end digital wedding caricature with EXACT identity matching. " +
+      "SCENE COMPOSITION: A panoramic 16:9 trio portrait. " +
+      "1. THE BRIDE (Referencing Image 0): Positioned on the left. Use the exact facial geometry, eye shape, and smile from Image 0. Hair must be styled exactly as in the reference but rendered in a clean digital paint style. She wears a premium white lace wedding dress. " +
+      "2. THE GROOM (Referencing Image 1): Positioned on the right. Transfer the exact jawline, nose shape, and grooming from Image 1. He wears a sharp, tailored black tuxedo with a satin bow tie. " +
+      "3. THE GUEST (Referencing Image 2): Positioned in the center. This is a 1:1 identity lock. Preserve the guest's specific eye-folds, unique nose structure, and hairstyle from Image 2. Do not generalize; maintain their specific ethnicity and facial character. " +
+      "ARTISTIC STYLE: 'Elegant Digital Caricature.' Use clean vector-like lines, smooth shading, and professional color grading. Exaggerate only the head-to-body ratio (60/40), but KEEP facial features anatomically consistent with the references. No generic cartoon faces. " +
+      "ENVIRONMENT: Iconic Raouche Rock in Beirut. The sea must show realistic sunset reflections. Golden hour lighting (5500K) illuminating the subjects' faces from the side. " +
+      "TEXT RENDERING: At the top, 'Can't wait to celebrate with you' in a high-contrast white calligraphy script. At the bottom, 'Hussein & Shahd — May 29, 2026' in a minimalist serif font. " +
+      "TECHNICAL: 8k resolution, deep depth of field, vibrant saturation, high-fidelity detail preservation.";
 
     const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
     const parts = [];
@@ -81,7 +63,7 @@ export default async function handler(req, res) {
     addField("size", "1536x1024");
     addField("quality", "medium");
 
-    // Attach bride photo
+    // Image 0: Bride
     if (BRIDE_PHOTO_URL) {
       const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
       if (brideRes.ok) {
@@ -90,7 +72,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Attach groom photo
+    // Image 1: Groom
     if (GROOM_PHOTO_URL) {
       const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
       if (groomRes.ok) {
@@ -99,7 +81,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Attach guest selfie
+    // Image 2: Guest
     const base64Data = guestPhoto.split(",")[1] || guestPhoto;
     const guestBuffer = Buffer.from(base64Data, "base64");
     addFile("image[]", "guest.png", "image/png", guestBuffer);
