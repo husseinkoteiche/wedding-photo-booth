@@ -46,17 +46,16 @@ export default async function handler(req, res) {
         model: "black-forest-labs/flux-2-pro",
         input: {
           prompt:
-            "Create a fun, vibrant wedding caricature illustration in a premium cartoon style. " +
-            "There are exactly THREE people in this image. " +
-            "The person from image 1 is the BRIDE — draw her as a stylized caricature keeping her recognizable facial features: her exact hair color, hairstyle, skin tone, face shape, eye shape, and nose from the reference. She is wearing a beautiful white wedding dress. " +
-            "The person from image 2 is the GROOM — draw him as a stylized caricature keeping his recognizable facial features: his exact hair color, hairstyle, skin tone, face shape, eye shape, and nose from the reference. He is wearing a sharp black tuxedo with a bow tie. " +
-            "The person from image 3 is a WEDDING GUEST — draw them as a stylized caricature keeping their recognizable facial features: their exact hair color, hairstyle, skin tone, face shape, eye shape, and nose from the reference. They are wearing stylish formal attire. " +
-            "The bride is on the left, the guest is in the middle, and the groom is on the right. All three are standing close together, smiling and happy. " +
-            "The background is a beautiful illustrated scene of the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, in the same stylized cartoon style with warm sunset colors. " +
-            "At the TOP of the image, elegant decorative text reads: \"Can't wait to celebrate with you\" in a beautiful script calligraphy font. " +
-            "At the BOTTOM, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
-            "Style: Premium wedding caricature art, clean lines, vibrant warm colors, playful but elegant, slightly exaggerated proportions with big heads and expressive faces. " +
-            "Joyful, celebratory, romantic mood with warm golds, pinks, and sunset oranges.",
+            "A stunning photorealistic wedding portrait photograph of exactly three people. " +
+            "The person from image 1 is the BRIDE — preserve her exact face, skin tone, hair color, hairstyle, facial structure, eyes, nose, and all distinguishing features with photographic accuracy. She is wearing a gorgeous flowing white wedding dress with elegant lace details. " +
+            "The person from image 2 is the GROOM — preserve his exact face, skin tone, hair color, hairstyle, facial structure, eyes, nose, and all distinguishing features with photographic accuracy. He is wearing a sharp tailored black tuxedo with a white dress shirt and bow tie. " +
+            "The person from image 3 is a WEDDING GUEST — preserve their exact face, skin tone, hair color, hairstyle, facial structure, eyes, nose, and all distinguishing features with photographic accuracy. They are wearing stylish formal wedding attire. " +
+            "The bride is on the left, the guest is in the middle, and the groom is on the right. All three standing close together, smiling warmly and naturally at the camera. " +
+            "They are standing on a beautiful terrace overlooking the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon. The Mediterranean Sea is deep blue behind them, with the dramatic natural stone arch clearly visible. " +
+            "Golden hour sunset lighting with warm orange and pink tones. " +
+            "At the top of the image, elegant text reads: \"Can't wait to celebrate with you\" in a beautiful script calligraphy font. " +
+            "At the bottom, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
+            "Professional wedding photography, shot on Canon EOS R5 with 85mm f/1.4 lens, shallow depth of field, natural skin textures, real hair strands, authentic fabric details, cinematic warm color grading. Photorealistic, not illustration.",
           input_image: resizeUrl(BRIDE_PHOTO_URL),
           input_image_2: resizeUrl(GROOM_PHOTO_URL),
           input_image_3: guestDataUri,
@@ -70,13 +69,6 @@ export default async function handler(req, res) {
     if (!createRes.ok) {
       const errData = await createRes.json().catch(() => ({}));
       console.error("Replicate create error:", JSON.stringify(errData));
-
-      // If "Prefer: wait" isn't supported, fall back to polling
-      if (createRes.status === 400 || createRes.status === 422) {
-        return res.status(502).json({
-          error: errData?.detail || "Failed to start image generation",
-        });
-      }
       return res.status(502).json({
         error: errData?.detail || "AI generation failed",
       });
