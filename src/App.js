@@ -103,7 +103,7 @@ export default function App() {
         // Mirror the image to match what they see
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0);
+        ctx.drawImage(video, 0, 0, w, h);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.5);
         setSelfie(dataUrl);
