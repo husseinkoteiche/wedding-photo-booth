@@ -21,8 +21,9 @@ export default async function handler(req, res) {
 
   function resizeUrl(url) {
     if (!url) return url;
+    // You can raise this to w_1536 or w_2048 if your Cloudinary plan allows it.
     if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
-      return url.replace("/upload/", "/upload/c_limit,w_1024,h_1024/");
+      return url.replace("/upload/", "/upload/c_limit,w_1536,h_1536/");
     }
     return url;
   }
@@ -30,71 +31,35 @@ export default async function handler(req, res) {
   try {
     console.log("Generating image...");
 
+    // IMPORTANT:
+    // - Do NOT use @image0 / @image1 / @image2 tokens (the API does not bind those).
+    // - Instead: explicitly state the reference order of uploaded images.
+    // - Use /v1/images/generations (NOT /edits) for best identity retention.
     const prompt =
-      "Create a wedding photobooth CARICATURE illustration with EXACTLY three people and ZERO extras.\n" +
-      "PRIORITY ORDER (do not violate):\n" +
-      "1) Identity likeness to reference images\n" +
-      "2) Correct subject count + left/center/right placement\n" +
-      "3) Wedding outfits + cheerful expressions\n" +
-      "4) Caricature rendering style (ONLY head-to-body exaggeration, NOT facial geometry changes)\n" +
-      "5) Background/location\n" +
-      "6) Text overlay (lowest priority)\n" +
-      "HARD CONSTRAINTS:\n" +
-      "- Only three humans: Subject 0, Subject 2, Subject 1. No other people, no silhouettes, no reflections of people.\n" +
-      "- Do not blend faces. Do not average faces. Do not swap faces between subjects.\n" +
-      "- Do not beautify, \"idealize,\" or change ethnicity.\n" +
-      "- Do not alter facial geometry beyond what is necessary to match the references.\n" +
-      "SUBJECT PLACEMENT (must match):\n" +
-      "Left: Subject 0 (Bride)\n" +
-      "Center: Subject 2 (Guest)\n" +
-      "Right: Subject 1 (Groom)\n" +
-      "--------------------------------\n" +
-      "SUBJECT 0 (BRIDE, LEFT) — IDENTITY LOCK\n" +
-      "Reference: @image0\n" +
-      "Reconstruct her face to match @image0 with maximum fidelity:\n" +
-      "- keep the same facial proportions, eye spacing, eyelid shape, nose shape, lip shape, chin shape, and cheekbone width\n" +
-      "- preserve unique asymmetry and distinctive features exactly\n" +
-      "Expression: BIG CHEERFUL SMILE, joyful, wedding-day excitement\n" +
-      "Outfit: elegant white silk wedding dress\n" +
-      "--------------------------------\n" +
-      "SUBJECT 1 (GROOM, RIGHT) — IDENTITY LOCK\n" +
-      "Reference: @image1\n" +
-      "Reconstruct his face to match @image1 with maximum fidelity:\n" +
-      "- keep the same jawline, chin projection, nose structure, brow shape, and facial hair pattern/density\n" +
-      "- preserve unique asymmetry and distinctive features exactly\n" +
-      "Expression: BIG CHEERFUL SMILE, happy and confident\n" +
-      "Outfit: tailored black tuxedo, white shirt, black bow tie\n" +
-      "--------------------------------\n" +
-      "SUBJECT 2 (GUEST, CENTER) — IDENTITY LOCK\n" +
-      "Reference: @image2\n" +
-      "Reconstruct their face to match @image2 with maximum fidelity:\n" +
-      "- preserve defining facial features and asymmetry exactly\n" +
-      "Expression: friendly natural smile\n" +
-      "Outfit: wedding-appropriate formal attire (neutral and elegant)\n" +
-      "--------------------------------\n" +
-      "CARICATURE RENDERING (LIKELINESS-SAFE)\n" +
-      "This is a caricature ONLY by:\n" +
-      "- slightly larger heads relative to bodies (photobooth caricature)\n" +
-      "- slightly amplified smiles and cheek lift\n" +
-      "DO NOT change facial feature sizes, spacing, or bone structure.\n" +
-      "Style: clean professional caricature illustration, crisp linework, smooth shading, polished wedding-booth look.\n" +
-      "--------------------------------\n" +
-      "SETTING\n" +
-      "Raouche Rock terrace, Beirut.\n" +
-      "Empty stone terrace. Mediterranean Sea in the background. Warm sunset atmosphere.\n" +
-      "No crowds. No background people. No props that block faces.\n" +
-      "--------------------------------\n" +
-      "TEXT OVERLAY (LOWEST PRIORITY)\n" +
+      "You are provided THREE reference photos in this exact order via image[] uploads:\n" +
+      "1) BRIDE reference photo\n" +
+      "2) GROOM reference photo\n" +
+      "3) GUEST reference photo\n\n" +
+      "TASK: Generate ONE wedding photobooth CARICATURE illustration featuring EXACTLY THREE people: Bride (left), Guest (center), Groom (right). No extra people.\n\n" +
+      "ABSOLUTE PRIORITY: Preserve facial identity from the reference photos. Each person must be immediately recognizable as their reference.\n" +
+      "Do NOT invent new faces. Do NOT average faces. Do NOT swap faces. Do NOT beautify. Do NOT change ethnicity.\n\n" +
+      "CARICATURE RULE (LIKELINESS-SAFE): Caricature is ONLY achieved by slightly larger heads relative to bodies + slightly amplified cheerful expressions.\n" +
+      "Do NOT change facial feature geometry (no changing eye spacing, nose shape, jawline, lip shape). Preserve asymmetry and distinctive traits.\n\n" +
+      "PLACEMENT: Bride on LEFT, Guest in CENTER, Groom on RIGHT.\n\n" +
+      "EXPRESSIONS:\n" +
+      "- Bride: BIG CHEERFUL SMILE, joyful, celebratory.\n" +
+      "- Groom: BIG CHEERFUL SMILE, happy, confident.\n" +
+      "- Guest: friendly natural smile.\n\n" +
+      "OUTFITS:\n" +
+      "- Bride: white silk wedding dress.\n" +
+      "- Groom: tailored black tuxedo, white shirt, black bow tie.\n" +
+      "- Guest: wedding-appropriate formal attire (neutral elegant).\n\n" +
+      "SETTING: Empty stone terrace at Raouche Rock, Beirut. Mediterranean Sea background. Warm sunset atmosphere.\n" +
+      "No crowds. No background people. No silhouettes. No reflections containing people.\n\n" +
+      "TEXT (keep subtle, do not harm faces):\n" +
       "Top in white calligraphy: \"Can't wait to celebrate with you\"\n" +
-      "Bottom center in small serif: \"Hussein & Shahd — May 29, 2026\"\n" +
-      "\n" +
-      "NEGATIVE / AVOID:\n" +
-      "extra people, background people, crowd, silhouette, reflection people,\n" +
-      "face blending, face merge, averaged face, swapped faces,\n" +
-      "generic handsome face, generic beautiful face, beautified,\n" +
-      "anime, pixar, doll-like, plastic skin, airbrushed, smooth skin,\n" +
-      "wrong ethnicity, altered jawline, altered nose, altered eye spacing,\n" +
-      "deformed hands, extra fingers, warped mouth, crooked teeth";
+      "Bottom center in small serif: \"Hussein & Shahd — May 29, 2026\"\n\n" +
+      "NEGATIVE: extra people, crowd, silhouettes, reflections with people, merged faces, swapped faces, generic faces, beautified faces, plastic skin, anime, pixar, deformed anatomy, extra limbs/fingers.";
 
     const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
     const parts = [];
@@ -113,30 +78,41 @@ export default async function handler(req, res) {
       parts.push("\r\n");
     }
 
+    // Fields for the Images GENERATIONS endpoint
     addField("model", "gpt-image-1");
     addField("prompt", prompt);
     addField("size", "1536x1024");
-    addField("quality", "medium");
+    addField("quality", "high");
 
-    // @image0: Bride
+    // IMPORTANT: upload reference images in the exact order the prompt describes:
+    // 1) Bride, 2) Groom, 3) Guest
+    // Bride
     if (BRIDE_PHOTO_URL) {
       const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
       if (brideRes.ok) {
         const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
         addFile("image[]", "bride.jpg", "image/jpeg", brideBuffer);
+      } else {
+        console.warn("Bride photo fetch failed:", brideRes.status);
       }
+    } else {
+      console.warn("Missing BRIDE_PHOTO_URL");
     }
 
-    // @image1: Groom
+    // Groom
     if (GROOM_PHOTO_URL) {
       const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
       if (groomRes.ok) {
         const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
         addFile("image[]", "groom.jpg", "image/jpeg", groomBuffer);
+      } else {
+        console.warn("Groom photo fetch failed:", groomRes.status);
       }
+    } else {
+      console.warn("Missing GROOM_PHOTO_URL");
     }
 
-    // @image2: Guest
+    // Guest (base64)
     const base64Data = guestPhoto.split(",")[1] || guestPhoto;
     const guestBuffer = Buffer.from(base64Data, "base64");
     addFile("image[]", "guest.png", "image/png", guestBuffer);
@@ -148,7 +124,8 @@ export default async function handler(req, res) {
     );
     const bodyBuffer = Buffer.concat(bodyParts);
 
-    const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
+    // ✅ Use GENERATIONS (not edits)
+    const openaiRes = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
