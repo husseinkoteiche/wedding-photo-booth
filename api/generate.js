@@ -31,14 +31,14 @@ export default async function handler(req, res) {
     console.log("Generating image...");
 
     const prompt =
-      "Create an ultra-high-resolution 8K photobooth portrait featuring EXACTLY three people.\n" +
+      "Create a professional wedding photobooth CARICATURE illustration featuring EXACTLY three people.\n" +
       "CRITICAL RULES:\n" +
       "• Only three humans present.\n" +
+      "• No extra people, silhouettes, or background figures.\n" +
       "• Do NOT merge faces.\n" +
-      "• Do NOT beautify or alter facial proportions.\n" +
-      "• Preserve identity fidelity above all artistic styling.\n" +
-      "• Maintain true ethnic features and natural skin texture.\n" +
-      "• No additional background figures or silhouettes.\n" +
+      "• Preserve identity likeness with high fidelity.\n" +
+      "• Maintain true ethnic features and natural skin tone.\n" +
+      "• Exaggeration must enhance recognition, not distort identity.\n" +
       "SUBJECT PLACEMENT:\n" +
       "Left = Bride (Subject 0)\n" +
       "Center = Guest (Subject 2)\n" +
@@ -46,86 +46,78 @@ export default async function handler(req, res) {
       "--------------------------------\n" +
       "SUBJECT 0 — BRIDE (LEFT)\n" +
       "Identity source: @image0\n" +
-      "Perform an identity-locked reconstruction using the exact facial geometry from @image0:\n" +
+      "Create a recognizable caricature using the exact facial structure from @image0:\n" +
       "• preserve skull shape and cheekbone width\n" +
-      "• preserve eye spacing, eyelid fold structure, and brow curvature\n" +
-      "• preserve nose bridge width and tip shape\n" +
-      "• preserve lip contour and philtrum depth\n" +
+      "• preserve eye spacing and eyelid structure\n" +
+      "• preserve nose shape and lip contour\n" +
+      "• maintain natural facial asymmetry\n" +
+      "Expression & Mood:\n" +
+      "• BIG cheerful smile\n" +
+      "• joyful wedding-day excitement\n" +
+      "• warm and welcoming energy\n" +
       "Appearance:\n" +
-      "• elegant white silk wedding gown\n" +
-      "• natural makeup\n" +
-      "• hair styled for wedding portrait\n" +
-      "• warm, joyful expression\n" +
+      "• elegant white silk wedding dress\n" +
+      "• soft wedding makeup\n" +
+      "• styled bridal hair\n" +
       "--------------------------------\n" +
       "SUBJECT 1 — GROOM (RIGHT)\n" +
       "Identity source: @image1\n" +
-      "Perform an identity-locked reconstruction using the exact facial structure from @image1:\n" +
+      "Create a recognizable caricature using the exact facial structure from @image1:\n" +
       "• preserve jawline angle and chin projection\n" +
-      "• preserve facial hair density and growth pattern\n" +
-      "• preserve nasal structure and brow ridge\n" +
-      "• preserve eye depth and spacing\n" +
+      "• preserve facial hair pattern and density\n" +
+      "• preserve brow shape and nasal structure\n" +
+      "• maintain eye depth and spacing\n" +
+      "Expression & Mood:\n" +
+      "• wide cheerful smile\n" +
+      "• relaxed and happy\n" +
+      "• confident celebratory energy\n" +
       "Appearance:\n" +
       "• tailored black tuxedo\n" +
       "• crisp white shirt\n" +
       "• black bow tie\n" +
-      "• relaxed confident expression\n" +
       "--------------------------------\n" +
       "SUBJECT 2 — GUEST (CENTER)\n" +
       "Identity source: @image2\n" +
-      "Execute 1:1 identity transfer with absolute fidelity:\n" +
-      "• replicate skin texture and pores\n" +
-      "• preserve unique facial asymmetries\n" +
-      "• preserve eye reflections and iris detail\n" +
-      "• preserve natural skin tone variation\n" +
+      "Execute faithful identity caricature:\n" +
+      "• replicate unique facial features and asymmetry\n" +
+      "• preserve skin tone and defining characteristics\n" +
+      "• maintain recognizable likeness\n" +
       "Expression:\n" +
-      "• candid photobooth smile\n" +
-      "• natural and relaxed\n" +
+      "• natural photobooth smile\n" +
+      "• friendly and relaxed\n" +
       "--------------------------------\n" +
-      "STYLE: PHOTOREALISTIC CARICATURE\n" +
-      "Apply subtle caricature enhancement while preserving identity:\n" +
-      "• slightly enlarge heads relative to body (photobooth style)\n" +
+      "CARICATURE STYLE\n" +
+      "• stylized illustrated caricature\n" +
+      "• slightly enlarged heads, smaller bodies (photobooth style)\n" +
       "• gently emphasize smiles and joyful expressions\n" +
-      "• do NOT distort facial geometry beyond recognition\n" +
-      "• likeness must remain instantly recognizable\n" +
+      "• subtly accentuate defining facial features\n" +
+      "• clean professional line work\n" +
+      "• soft painterly shading\n" +
+      "• vibrant yet natural colors\n" +
+      "• smooth, polished wedding illustration finish\n" +
       "--------------------------------\n" +
       "SETTING\n" +
-      "Location: Raouche Rock terrace, Beirut\n" +
-      "• empty stone terrace\n" +
-      "• Mediterranean Sea in background\n" +
-      "• natural coastal light\n" +
-      "• warm sunset tones\n" +
-      "• no tourists, no crowd, no objects\n" +
-      "--------------------------------\n" +
-      "LIGHTING\n" +
-      "• soft golden-hour sunlight\n" +
-      "• natural skin tones\n" +
-      "• realistic shadows\n" +
-      "• no studio lighting\n" +
-      "• no beauty smoothing\n" +
-      "--------------------------------\n" +
-      "CAMERA & IMAGE QUALITY\n" +
-      "• simulated Hasselblad X2D\n" +
-      "• 80mm portrait lens\n" +
-      "• f/2.8 aperture\n" +
-      "• shallow depth of field\n" +
-      "• sharp focus on all faces\n" +
-      "• natural skin texture\n" +
-      "• individual hair strands visible\n" +
-      "• zero artificial smoothing\n" +
+      "Raouche Rock terrace, Beirut\n" +
+      "• stone terrace\n" +
+      "• Mediterranean Sea backdrop\n" +
+      "• warm sunset sky\n" +
+      "• soft golden coastal light\n" +
+      "• romantic wedding atmosphere\n" +
+      "• no crowd or background people\n" +
       "--------------------------------\n" +
       "TEXT OVERLAY\n" +
-      "Top (white calligraphy):\n" +
+      "Top (white elegant calligraphy):\n" +
       "\"Can't wait to celebrate with you\"\n" +
-      "Bottom center (small elegant serif):\n" +
+      "Bottom center (small refined serif):\n" +
       "\"Hussein & Shahd — May 29, 2026\"\n" +
       "--------------------------------\n" +
       "FINAL OUTPUT REQUIREMENTS\n" +
-      "• ultra-realistic skin texture\n" +
-      "• accurate human anatomy\n" +
-      "• natural color grading\n" +
-      "• no AI artifacts\n" +
-      "• no extra fingers, limbs, or distortions\n" +
-      "• maintain true likeness to all source images";
+      "• instantly recognizable caricature likeness\n" +
+      "• joyful wedding mood\n" +
+      "• polished illustration quality\n" +
+      "• clean edges and professional finish\n" +
+      "• no distortions or extra limbs\n" +
+      "• no visual clutter";
 
     const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
     const parts = [];
