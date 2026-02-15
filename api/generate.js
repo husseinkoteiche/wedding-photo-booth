@@ -11,12 +11,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "No guest photo provided" });
   }
 
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
   const BRIDE_PHOTO_URL = process.env.BRIDE_PHOTO_URL;
   const GROOM_PHOTO_URL = process.env.GROOM_PHOTO_URL;
 
-  if (!OPENAI_API_KEY) {
-    return res.status(500).json({ error: "Missing API key" });
+  if (!REPLICATE_API_TOKEN) {
+    return res.status(500).json({ error: "Missing Replicate API token" });
   }
 
   // Add Cloudinary resize to keep images under limits
@@ -29,100 +29,107 @@ export default async function handler(req, res) {
   }
 
   try {
-    const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
-    const parts = [];
+    // Convert guest base64 to a data URI that Replicate accepts
+    const guestDataUri = guestPhoto.startsWith("data:")
+      ? guestPhoto
+      : `data:image/png;base64,${guestPhoto}`;
 
-    function addField(name, value) {
-      parts.push(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
-      );
-    }
-
-    function addFile(name, filename, contentType, buffer) {
-      parts.push(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`
-      );
-      parts.push(buffer);
-      parts.push("\r\n");
-    }
-
-    addField("model", "gpt-image-1.5");
-    addField(
-      "prompt",
-      "Create a fun, vibrant wedding caricature illustration in a premium cartoon style. " +
-        "There are exactly THREE people in this image: " +
-        "Image 1 is the BRIDE — draw her as a stylized caricature but KEEP her recognizable facial features: her exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. She is wearing a beautiful white wedding dress. " +
-        "Image 2 is the GROOM — draw him as a stylized caricature but KEEP his recognizable facial features: his exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. He is wearing a sharp black tuxedo with a bow tie. " +
-        "Image 3 is a WEDDING GUEST — draw them as a stylized caricature but KEEP their recognizable facial features: their exact hair color, hairstyle, skin tone, face shape, eye shape, and nose shape from the reference photo. They are wearing stylish formal attire. " +
-        "The bride is on the left, the guest is in the middle, and the groom is on the right. All three are standing close together, smiling and happy. " +
-        "The background is a beautiful illustrated scene of the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, drawn in the same stylized cartoon style with warm sunset colors. " +
-        "At the TOP of the image, there is elegant decorative text that reads: \"Can't wait to celebrate with you\" in a beautiful script/calligraphy font. " +
-        "At the BOTTOM of the image, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
-        "Style: Premium wedding caricature art, clean lines, vibrant warm colors, playful but elegant, slightly exaggerated proportions with big heads and expressive faces. " +
-        "The overall mood should be joyful, celebratory, and romantic with a warm color palette of golds, pinks, and sunset oranges."
-    );
-    addField("size", "1536x1024");
-    addField("quality", "medium");
-
-    // Fetch and attach bride photo
-    if (BRIDE_PHOTO_URL) {
-      const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
-      if (brideRes.ok) {
-        const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
-        addFile("image[]", "bride.jpg", "image/jpeg", brideBuffer);
-      }
-    }
-
-    // Fetch and attach groom photo
-    if (GROOM_PHOTO_URL) {
-      const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
-      if (groomRes.ok) {
-        const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
-        addFile("image[]", "groom.jpg", "image/jpeg", groomBuffer);
-      }
-    }
-
-    // Guest selfie from base64
-    const base64Data = guestPhoto.split(",")[1];
-    const guestBuffer = Buffer.from(base64Data, "base64");
-    addFile("image[]", "guest.png", "image/png", guestBuffer);
-
-    parts.push(`--${boundary}--\r\n`);
-
-    // Combine all parts into a single Buffer
-    const bodyParts = parts.map((p) =>
-      typeof p === "string" ? Buffer.from(p, "utf-8") : p
-    );
-    const bodyBuffer = Buffer.concat(bodyParts);
-
-    // Call OpenAI
-    const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
+    // Create prediction with Flux 2 Pro
+    const createRes = await fetch("https://api.replicate.com/v1/predictions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+        "Content-Type": "application/json",
+        Prefer: "wait",
       },
-      body: bodyBuffer,
+      body: JSON.stringify({
+        model: "black-forest-labs/flux-2-pro",
+        input: {
+          prompt:
+            "Create a fun, vibrant wedding caricature illustration in a premium cartoon style. " +
+            "There are exactly THREE people in this image. " +
+            "The person from image 1 is the BRIDE — draw her as a stylized caricature keeping her recognizable facial features: her exact hair color, hairstyle, skin tone, face shape, eye shape, and nose from the reference. She is wearing a beautiful white wedding dress. " +
+            "The person from image 2 is the GROOM — draw him as a stylized caricature keeping his recognizable facial features: his exact hair color, hairstyle, skin tone, face shape, eye shape, and nose from the reference. He is wearing a sharp black tuxedo with a bow tie. " +
+            "The person from image 3 is a WEDDING GUEST — draw them as a stylized caricature keeping their recognizable facial features: their exact hair color, hairstyle, skin tone, face shape, eye shape, and nose from the reference. They are wearing stylish formal attire. " +
+            "The bride is on the left, the guest is in the middle, and the groom is on the right. All three are standing close together, smiling and happy. " +
+            "The background is a beautiful illustrated scene of the iconic Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, in the same stylized cartoon style with warm sunset colors. " +
+            "At the TOP of the image, elegant decorative text reads: \"Can't wait to celebrate with you\" in a beautiful script calligraphy font. " +
+            "At the BOTTOM, small elegant text reads: \"Hussein & Shahd — May 29, 2026\" " +
+            "Style: Premium wedding caricature art, clean lines, vibrant warm colors, playful but elegant, slightly exaggerated proportions with big heads and expressive faces. " +
+            "Joyful, celebratory, romantic mood with warm golds, pinks, and sunset oranges.",
+          input_image: resizeUrl(BRIDE_PHOTO_URL),
+          input_image_2: resizeUrl(GROOM_PHOTO_URL),
+          input_image_3: guestDataUri,
+          aspect_ratio: "16:9",
+          output_format: "png",
+          output_quality: 90,
+        },
+      }),
     });
 
-    if (!openaiRes.ok) {
-      const errData = await openaiRes.json().catch(() => ({}));
-      console.error("OpenAI error:", JSON.stringify(errData));
+    if (!createRes.ok) {
+      const errData = await createRes.json().catch(() => ({}));
+      console.error("Replicate create error:", JSON.stringify(errData));
+
+      // If "Prefer: wait" isn't supported, fall back to polling
+      if (createRes.status === 400 || createRes.status === 422) {
+        return res.status(502).json({
+          error: errData?.detail || "Failed to start image generation",
+        });
+      }
       return res.status(502).json({
-        error: errData?.error?.message || "AI generation failed",
+        error: errData?.detail || "AI generation failed",
       });
     }
 
-    const data = await openaiRes.json();
-    const img = data.data?.[0];
+    let prediction = await createRes.json();
 
-    if (img?.b64_json) {
-      return res.status(200).json({ image: `data:image/png;base64,${img.b64_json}` });
-    } else if (img?.url) {
-      return res.status(200).json({ image: img.url });
-    } else {
-      return res.status(502).json({ error: "No image returned" });
+    // If the prediction completed immediately (Prefer: wait worked)
+    if (prediction.status === "succeeded" && prediction.output) {
+      const imageUrl =
+        typeof prediction.output === "string"
+          ? prediction.output
+          : prediction.output[0] || prediction.output;
+      return res.status(200).json({ image: imageUrl });
     }
+
+    // Otherwise, poll for completion
+    const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
+    const maxWait = 240000; // 4 minutes
+    const interval = 3000; // 3 seconds
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWait) {
+      await new Promise((r) => setTimeout(r, interval));
+
+      const pollRes = await fetch(pollUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}` },
+      });
+
+      if (!pollRes.ok) {
+        console.error("Poll error:", pollRes.status);
+        continue;
+      }
+
+      prediction = await pollRes.json();
+
+      if (prediction.status === "succeeded") {
+        const imageUrl =
+          typeof prediction.output === "string"
+            ? prediction.output
+            : prediction.output[0] || prediction.output;
+        return res.status(200).json({ image: imageUrl });
+      }
+
+      if (prediction.status === "failed" || prediction.status === "canceled") {
+        console.error("Prediction failed:", prediction.error);
+        return res.status(502).json({
+          error: prediction.error || "Image generation failed",
+        });
+      }
+    }
+
+    return res.status(504).json({ error: "Image generation timed out. Please try again." });
   } catch (err) {
     console.error("Generate error:", err);
     return res.status(500).json({ error: "Something went wrong. Please try again." });
