@@ -6,98 +6,208 @@ export default async function handler(req, res) {
   }
 
   const { guestPhoto } = req.body;
-  const TOKEN = process.env.REPLICATE_API_TOKEN;
-  const BRIDE = (process.env.BRIDE_PHOTO_URL || "").trim();
-  const GROOM = (process.env.GROOM_PHOTO_URL || "").trim();
 
-  if (!guestPhoto || !BRIDE || !GROOM || !TOKEN) {
-    return res.status(400).json({ error: "Missing required images or token" });
+  if (!guestPhoto) {
+    return res.status(400).json({ error: "No guest photo provided" });
+  }
+
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const BRIDE_PHOTO_URL = process.env.BRIDE_PHOTO_URL;
+  const GROOM_PHOTO_URL = process.env.GROOM_PHOTO_URL;
+
+  if (!OPENAI_API_KEY) {
+    return res.status(500).json({ error: "Missing API key" });
+  }
+
+  function resizeUrl(url) {
+    if (!url) return url;
+    if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+      return url.replace("/upload/", "/upload/c_limit,w_1024,h_1024/");
+    }
+    return url;
   }
 
   try {
-    // Clean guest photo into a proper data URI
+    // ============================================================
+    // STEP 1: Use GPT-4o vision to analyze all 3 faces in detail
+    // This is the "translation layer" that makes ChatGPT caricatures so good
+    // ============================================================
+    console.log("Step 1: Analyzing faces with GPT-4o vision...");
+
     const guestDataUri = guestPhoto.startsWith("data:")
       ? guestPhoto
       : `data:image/png;base64,${guestPhoto.includes(",") ? guestPhoto.split(",")[1] : guestPhoto}`;
 
-    // Call Flux 2 Pro with Prefer: wait
-    const createRes = await fetch(
-      "https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions",
+    const visionRes = await fetch(
+      "https://api.openai.com/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${TOKEN}`,
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
           "Content-Type": "application/json",
-          Prefer: "wait",
         },
         body: JSON.stringify({
-          input: {
-            prompt:
-              "A premium wedding caricature illustration of three people. " +
-              "STYLE: High-quality digital caricature art with slightly exaggerated proportions — big heads, expressive eyes, warm smiles. Clean vector-like lines, vibrant colors, playful but elegant. NOT a cartoon, NOT chibi — a sophisticated caricature like those drawn by professional wedding caricature artists. " +
-              "IDENTITY: The woman from index 0 is the BRIDE on the left — preserve her EXACT face shape, skin tone, hair color, hairstyle, eye color, nose shape, and distinguishing features from the reference. She is wearing a beautiful flowing white wedding dress with lace details. " +
-              "The man from index 1 is the GROOM on the right — preserve his EXACT face shape, skin tone, hair color, hairstyle, eye color, nose shape, and distinguishing features from the reference. He is wearing a sharp black tuxedo with a white shirt and bow tie. " +
-              "The person from index 2 is a WEDDING GUEST in the middle — preserve their EXACT face shape, skin tone, hair color, hairstyle, eye color, nose shape, and distinguishing features from the reference. They are wearing stylish formal wedding attire. " +
-              "All three standing close together, happy and smiling warmly. " +
-              "BACKGROUND: A beautiful illustrated version of Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, painted in the same caricature style with warm sunset colors — golden, orange, pink sky. " +
-              'TEXT: At the top in elegant decorative script font: "Can\'t wait to celebrate with you" ' +
-              'At the bottom in smaller elegant text: "Hussein & Shahd — May 29, 2026" ' +
-              "COLOR PALETTE: Warm golds, sunset oranges, soft pinks, romantic tones. The overall mood is joyful, celebratory, and romantic.",
-            input_images: [BRIDE, GROOM, guestDataUri],
-            aspect_ratio: "16:9",
-            guidance: 3.5,
-            output_format: "png",
-          },
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a professional portrait artist assistant. Analyze photos and produce extremely detailed physical descriptions. For each person, describe: face shape (oval/round/square/heart), exact skin tone shade, hair color and style (length, texture, parting), eye shape and color, eyebrow shape and thickness, nose shape (bridge width, tip), lip shape, jawline, cheekbone prominence, facial hair if any, distinctive features (dimples, freckles, moles, glasses, beauty marks). Be extremely specific — these descriptions will be used to recreate their likeness. Keep each to 2-3 dense sentences.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: 'Analyze these 3 photos. Photo 1 = BRIDE, Photo 2 = GROOM, Photo 3 = GUEST. Give me hyper-detailed physical descriptions to recreate each face. Format EXACTLY as:\n\nBRIDE: [description]\nGROOM: [description]\nGUEST: [description]',
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: resizeUrl(BRIDE_PHOTO_URL), detail: "high" },
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: resizeUrl(GROOM_PHOTO_URL), detail: "high" },
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: guestDataUri, detail: "high" },
+                },
+              ],
+            },
+          ],
+          max_tokens: 600,
+          temperature: 0.2,
         }),
       }
     );
 
-    if (!createRes.ok) {
-      const err = await createRes.json().catch(() => ({}));
-      console.error("Replicate error:", JSON.stringify(err));
-      return res.status(502).json({ error: JSON.stringify(err) });
+    let brideDesc = "a woman with Middle Eastern features";
+    let groomDesc = "a man with Middle Eastern features";
+    let guestDesc = "a person";
+
+    if (visionRes.ok) {
+      const visionData = await visionRes.json();
+      const analysis = visionData.choices?.[0]?.message?.content || "";
+      console.log("Face analysis result:", analysis);
+
+      const brideMatch = analysis.match(/BRIDE:\s*(.+?)(?=\nGROOM:|$)/s);
+      const groomMatch = analysis.match(/GROOM:\s*(.+?)(?=\nGUEST:|$)/s);
+      const guestMatch = analysis.match(/GUEST:\s*(.+?)$/s);
+
+      if (brideMatch) brideDesc = brideMatch[1].trim();
+      if (groomMatch) groomDesc = groomMatch[1].trim();
+      if (guestMatch) guestDesc = guestMatch[1].trim();
+    } else {
+      const err = await visionRes.json().catch(() => ({}));
+      console.error("Vision step failed, using fallback:", JSON.stringify(err));
     }
 
-    const prediction = await createRes.json();
+    // ============================================================
+    // STEP 2: Generate caricature with detailed descriptions
+    // + original reference photos attached
+    // ============================================================
+    console.log("Step 2: Generating caricature...");
 
-    // Extract image URL from output
-    let imageUrl = null;
-    if (prediction.output) {
-      if (typeof prediction.output === "string") {
-        imageUrl = prediction.output;
-      } else if (Array.isArray(prediction.output)) {
-        imageUrl = prediction.output[0];
+    const prompt =
+      "Create a premium wedding caricature illustration of EXACTLY three people. " +
+      "STYLE: High-quality digital caricature — slightly exaggerated proportions (bigger heads, expressive eyes, warm smiles), clean lines, vibrant colors. Like a professional wedding caricature artist. NOT childish cartoon, NOT anime — sophisticated caricature art. " +
+      "CRITICAL IDENTITY INSTRUCTIONS — each person MUST match their reference photo: " +
+      "ON THE LEFT — THE BRIDE (from Image 1): " + brideDesc + ". She wears a beautiful flowing white wedding dress with delicate lace details, holding a small bouquet of flowers. " +
+      "ON THE RIGHT — THE GROOM (from Image 2): " + groomDesc + ". He wears a sharp black tuxedo with a crisp white dress shirt and black bow tie. " +
+      "IN THE CENTER — THE WEDDING GUEST (from Image 3): " + guestDesc + ". They wear stylish formal wedding attire. " +
+      "Each caricature MUST be immediately recognizable as the person in their reference photo. Preserve their EXACT skin tone, hair color and style, eye color, face shape, nose shape, and all distinguishing features. Only exaggerate proportions for caricature effect — never change their actual features. " +
+      "POSE: All three standing close together, arms around each other, genuinely smiling and radiating joy. " +
+      "BACKGROUND: Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, illustrated in the same warm caricature style with a breathtaking golden hour sunset. " +
+      'TEXT: Elegant decorative script at the top: "Can\'t wait to celebrate with you" — ' +
+      'Smaller elegant text at the bottom: "Hussein & Shahd — May 29, 2026" ' +
+      "COLORS: Warm golds, sunset oranges, soft pinks, romantic tones throughout.";
+
+    const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
+    const parts = [];
+
+    function addField(name, value) {
+      parts.push(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+      );
+    }
+
+    function addFile(name, filename, contentType, buffer) {
+      parts.push(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`
+      );
+      parts.push(buffer);
+      parts.push("\r\n");
+    }
+
+    addField("model", "gpt-image-1");
+    addField("prompt", prompt);
+    addField("size", "1536x1024");
+    addField("quality", "high");
+
+    // Attach bride photo
+    if (BRIDE_PHOTO_URL) {
+      const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
+      if (brideRes.ok) {
+        const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
+        addFile("image[]", "bride.jpg", "image/jpeg", brideBuffer);
       }
     }
 
-    // If Prefer:wait returned but still processing, poll
-    if (!imageUrl && prediction.id) {
-      const pollUrl = `https://api.replicate.com/v1/predictions/${prediction.id}`;
-      for (let i = 0; i < 40; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const pollRes = await fetch(pollUrl, {
-          headers: { Authorization: `Bearer ${TOKEN}` },
-        });
-        if (!pollRes.ok) continue;
-        const p = await pollRes.json();
-
-        if (p.status === "succeeded" && p.output) {
-          imageUrl = typeof p.output === "string" ? p.output : Array.isArray(p.output) ? p.output[0] : null;
-          break;
-        }
-        if (p.status === "failed" || p.status === "canceled") {
-          return res.status(502).json({ error: p.error || "Generation failed" });
-        }
+    // Attach groom photo
+    if (GROOM_PHOTO_URL) {
+      const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
+      if (groomRes.ok) {
+        const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
+        addFile("image[]", "groom.jpg", "image/jpeg", groomBuffer);
       }
     }
 
-    if (!imageUrl) {
+    // Attach guest selfie
+    const base64Data = guestPhoto.split(",")[1] || guestPhoto;
+    const guestBuffer = Buffer.from(base64Data, "base64");
+    addFile("image[]", "guest.png", "image/png", guestBuffer);
+
+    parts.push(`--${boundary}--\r\n`);
+
+    const bodyParts = parts.map((p) =>
+      typeof p === "string" ? Buffer.from(p, "utf-8") : p
+    );
+    const bodyBuffer = Buffer.concat(bodyParts);
+
+    const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: bodyBuffer,
+    });
+
+    if (!openaiRes.ok) {
+      const errData = await openaiRes.json().catch(() => ({}));
+      console.error("OpenAI image error:", JSON.stringify(errData));
+      return res.status(502).json({
+        error: errData?.error?.message || "AI generation failed",
+      });
+    }
+
+    const data = await openaiRes.json();
+    const img = data.data?.[0];
+
+    if (img?.b64_json) {
+      return res
+        .status(200)
+        .json({ image: `data:image/png;base64,${img.b64_json}` });
+    } else if (img?.url) {
+      return res.status(200).json({ image: img.url });
+    } else {
       return res.status(502).json({ error: "No image returned" });
     }
-
-    return res.status(200).json({ image: imageUrl });
   } catch (err) {
-    console.error("Error:", err);
-    return res.status(500).json({ error: err.message });
+    console.error("Generate error:", err);
+    return res
+      .status(500)
+      .json({ error: "Something went wrong. Please try again." });
   }
 }
