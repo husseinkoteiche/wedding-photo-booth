@@ -34,8 +34,8 @@ export default async function handler(req, res) {
       ? guestPhoto
       : `data:image/png;base64,${guestPhoto}`;
 
-    // Create prediction with Flux 2 Pro
-    const createRes = await fetch("https://api.replicate.com/v1/predictions", {
+    // Create prediction with Flux 2 Pro (official model endpoint)
+    const createRes = await fetch("https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
@@ -43,7 +43,6 @@ export default async function handler(req, res) {
         Prefer: "wait",
       },
       body: JSON.stringify({
-        model: "black-forest-labs/flux-2-pro",
         input: {
           prompt:
             "A stunning photorealistic wedding portrait photograph of exactly three people. " +
