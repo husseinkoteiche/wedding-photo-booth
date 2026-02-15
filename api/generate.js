@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       ? guestPhoto
       : `data:image/png;base64,${guestPhoto.includes(",") ? guestPhoto.split(",")[1] : guestPhoto}`;
 
-    // Call Flux 2 Pro with Prefer: wait (returns result directly)
+    // Call Flux 2 Pro with Prefer: wait
     const createRes = await fetch(
       "https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions",
       {
@@ -33,17 +33,18 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           input: {
             prompt:
-              "A high-end, hyper-realistic wedding photograph. " +
-              "SUBJECTS: The woman from index 0 is the bride on the left. " +
-              "The man from index 1 is the groom on the right. " +
-              "The person from index 2 is the guest in the middle. " +
-              "Preserve each person's exact face, skin tone, hair, and features from their reference image. " +
-              "SETTING: Terrace overlooking Raouche Rock (Pigeon Rocks), Beirut at golden hour sunset. Mediterranean Sea behind them. " +
-              "STYLE: 8K, natural skin textures, Canon EOS R5 85mm f/1.4, cinematic warm lighting. " +
-              'TEXT: "Can\'t wait to celebrate with you" at the top. "Hussein & Shahd — May 29, 2026" at the bottom.',
+              "A premium wedding caricature illustration of three people. " +
+              "STYLE: High-quality digital caricature art with slightly exaggerated proportions — big heads, expressive eyes, warm smiles. Clean vector-like lines, vibrant colors, playful but elegant. NOT a cartoon, NOT chibi — a sophisticated caricature like those drawn by professional wedding caricature artists. " +
+              "IDENTITY: The woman from index 0 is the BRIDE on the left — preserve her EXACT face shape, skin tone, hair color, hairstyle, eye color, nose shape, and distinguishing features from the reference. She is wearing a beautiful flowing white wedding dress with lace details. " +
+              "The man from index 1 is the GROOM on the right — preserve his EXACT face shape, skin tone, hair color, hairstyle, eye color, nose shape, and distinguishing features from the reference. He is wearing a sharp black tuxedo with a white shirt and bow tie. " +
+              "The person from index 2 is a WEDDING GUEST in the middle — preserve their EXACT face shape, skin tone, hair color, hairstyle, eye color, nose shape, and distinguishing features from the reference. They are wearing stylish formal wedding attire. " +
+              "All three standing close together, happy and smiling warmly. " +
+              "BACKGROUND: A beautiful illustrated version of Raouche Rock (Pigeon Rocks) in Beirut, Lebanon with the Mediterranean Sea, painted in the same caricature style with warm sunset colors — golden, orange, pink sky. " +
+              'TEXT: At the top in elegant decorative script font: "Can\'t wait to celebrate with you" ' +
+              'At the bottom in smaller elegant text: "Hussein & Shahd — May 29, 2026" ' +
+              "COLOR PALETTE: Warm golds, sunset oranges, soft pinks, romantic tones. The overall mood is joyful, celebratory, and romantic.",
             input_images: [BRIDE, GROOM, guestDataUri],
             aspect_ratio: "16:9",
-            mode: "raw",
             guidance: 3.5,
             output_format: "png",
           },
