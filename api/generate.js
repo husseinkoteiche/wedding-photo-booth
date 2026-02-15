@@ -46,7 +46,7 @@ export default async function handler(req, res) {
       parts.push("\r\n");
     }
 
-    addField("model", "gpt-image-1");
+    addField("model", "gpt-image-1.5");
     addField(
       "prompt",
       "Create a stunning, joyful wedding portrait photograph of THREE people. " +
