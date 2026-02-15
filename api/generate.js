@@ -1,4 +1,4 @@
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         "Warm golden tones, natural skin textures, cinematic color grading."
     );
     addField("size", "1536x1024");
-    addField("quality", "high");
+    addField("quality", "medium");
 
     // Fetch and attach bride photo
     if (BRIDE_PHOTO_URL) {
