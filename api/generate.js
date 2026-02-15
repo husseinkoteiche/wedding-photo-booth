@@ -1,4 +1,4 @@
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 const PIAPI_URL = "https://api.piapi.ai/api/v1/task";
 
