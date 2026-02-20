@@ -245,15 +245,11 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
     if (CLOUD_NAME && CLOUD_KEY && CLOUD_SECRET) {
       const crypto = await import("crypto");
 
-      async function uploadToCloudinary(imageData, mimeType, idPrefix) {
+      async function uploadToCloudinary(imageData, mimeType, folder, fileName) {
         try {
           const timestamp = Math.floor(Date.now() / 1000);
-          const folder = "weddings/hussein-shahd-2026";
-          const publicId = `${idPrefix}_${timestamp}_${Math.random()
-            .toString(36)
-            .slice(2, 8)}`;
 
-          const sigString = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${CLOUD_SECRET}`;
+          const sigString = `folder=${folder}&public_id=${fileName}&timestamp=${timestamp}${CLOUD_SECRET}`;
           const signature = crypto
             .createHash("sha1")
             .update(sigString)
@@ -265,7 +261,7 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
           cloudForm.append("timestamp", timestamp.toString());
           cloudForm.append("signature", signature);
           cloudForm.append("folder", folder);
-          cloudForm.append("public_id", publicId);
+          cloudForm.append("public_id", fileName);
 
           const cloudRes = await fetch(
             `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
@@ -274,25 +270,30 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
 
           if (cloudRes.ok) {
             const cloudData = await cloudRes.json();
-            console.log(`Cloudinary upload success (${idPrefix}):`, cloudData.secure_url);
+            console.log(`Cloudinary upload success (${fileName}):`, cloudData.secure_url);
             return cloudData.secure_url;
           } else {
             const errText = await cloudRes.text().catch(() => "unknown");
-            console.log(`Cloudinary upload failed (${idPrefix}):`, cloudRes.status, errText);
+            console.log(`Cloudinary upload failed (${fileName}):`, cloudRes.status, errText);
           }
         } catch (err) {
-          console.log(`Cloudinary error (${idPrefix}, non-critical):`, err.message);
+          console.log(`Cloudinary error (${fileName}, non-critical):`, err.message);
         }
         return null;
       }
 
       console.log("Step 4: Uploading to Cloudinary...");
+
+      // Shared guest folder for this session
+      const sessionId = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const guestFolder = `weddings/hussein-shahd-2026/guest_${sessionId}`;
+
       console.log(`Selfie base64 length: ${base64Data.length}, Caricature base64 length: ${imageBase64.length}`);
 
-      // Upload both in parallel
+      // Upload both in parallel into the same guest folder
       const [caricatureResult, selfieResult] = await Promise.all([
-        uploadToCloudinary(imageBase64, "image/png", "caricature"),
-        uploadToCloudinary(base64Data, guestMime, "selfie"),
+        uploadToCloudinary(imageBase64, "image/png", guestFolder, "caricature"),
+        uploadToCloudinary(base64Data, guestMime, guestFolder, "selfie"),
       ]);
 
       cloudinaryUrl = caricatureResult;
