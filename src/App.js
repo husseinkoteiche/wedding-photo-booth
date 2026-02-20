@@ -603,30 +603,33 @@ export default function App() {
                 onClick={async () => {
                   const fileName = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
 
-                  try {
-                    // Convert data URL to blob (reliable method for iOS)
-                    const parts = result.split(",");
-                    const mime = parts[0].match(/:(.*?);/)[1];
-                    const raw = atob(parts[1]);
-                    const arr = new Uint8Array(raw.length);
-                    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-                    const blob = new Blob([arr], { type: mime });
-                    const file = new File([blob], fileName, { type: mime });
+                  // Convert data URL to blob
+                  const parts = result.split(",");
+                  const mime = parts[0].match(/:(.*?);/)[1];
+                  const raw = atob(parts[1]);
+                  const arr = new Uint8Array(raw.length);
+                  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+                  const blob = new Blob([arr], { type: mime });
+                  const file = new File([blob], fileName, { type: mime });
 
-                    // iOS Safari: native share sheet with "Save Image" option
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                      await navigator.share({
-                        files: [file],
-                        title: `Photo with ${WEDDING.coupleNames}`,
-                      });
+                  const hasShare = !!navigator.share;
+                  const hasCanShare = !!navigator.canShare;
+                  const canShareFiles = hasCanShare && navigator.canShare({ files: [file] });
+
+                  // Debug: show what's supported (REMOVE THIS AFTER TESTING)
+                  alert(`share: ${hasShare}, canShare: ${hasCanShare}, canShareFiles: ${canShareFiles}, size: ${blob.size}`);
+
+                  if (hasShare && canShareFiles) {
+                    try {
+                      await navigator.share({ files: [file], title: `Photo with ${WEDDING.coupleNames}` });
                       return;
+                    } catch (err) {
+                      if (err.name === "AbortError") return;
+                      alert("Share error: " + err.message);
                     }
-                  } catch (err) {
-                    if (err.name === "AbortError") return; // User cancelled share
-                    console.log("Share failed, trying download fallback");
                   }
 
-                  // Fallback: download link (Android / desktop / share failure)
+                  // Fallback
                   const link = document.createElement("a");
                   link.href = result;
                   link.download = fileName;
