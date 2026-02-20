@@ -126,7 +126,7 @@ export default function App() {
     } catch (err) {
       console.error(err);
       setError(
-        "Something went wrong creating your portrait. Let's try again!"
+        "DEBUG: " + err.message
       );
       setStep(STEPS.WELCOME);
     }
