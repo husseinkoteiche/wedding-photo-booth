@@ -30,6 +30,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(null);
   const [loadingMsg, setLoadingMsg] = useState(0);
+  const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -53,6 +54,7 @@ export default function App() {
 
   const openCamera = useCallback(async () => {
     setError("");
+    setVideoReady(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -63,7 +65,10 @@ export default function App() {
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadeddata = () => setVideoReady(true);
+      }
       setStep(STEPS.CAMERA);
     } catch {
       setError(
@@ -80,14 +85,25 @@ export default function App() {
     if (countdown === 0) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      if (video && canvas) {
+      if (video && canvas && video.videoWidth > 0 && video.videoHeight > 0) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext("2d").drawImage(video, 0, 0);
         const dataUrl = canvas.toDataURL("image/png");
-        setSelfie(dataUrl);
+        // Validate we got real image data (not a blank 0x0 canvas)
+        if (dataUrl && dataUrl.length > 100) {
+          setSelfie(dataUrl);
+          stopCamera();
+          generateImage(dataUrl);
+        } else {
+          setError("Camera wasn't ready. Please try again.");
+          setStep(STEPS.WELCOME);
+          stopCamera();
+        }
+      } else {
+        setError("Camera wasn't ready. Please try again.");
+        setStep(STEPS.WELCOME);
         stopCamera();
-        generateImage(dataUrl);
       }
       setCountdown(null);
       return;
@@ -136,6 +152,7 @@ export default function App() {
     setSelfie(null);
     setResult(null);
     setError("");
+    setVideoReady(false);
     setStep(STEPS.WELCOME);
   };
 
@@ -460,10 +477,10 @@ export default function App() {
             <button
               className="btn"
               onClick={snap}
-              disabled={countdown !== null}
-              style={{ opacity: countdown !== null ? 0.5 : 1 }}
+              disabled={countdown !== null || !videoReady}
+              style={{ opacity: (countdown !== null || !videoReady) ? 0.5 : 1 }}
             >
-              {countdown !== null ? "Hold still…" : "Capture"}
+              {!videoReady ? "Starting camera…" : countdown !== null ? "Hold still…" : "Capture"}
             </button>
           </div>
         )}
