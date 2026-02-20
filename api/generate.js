@@ -237,51 +237,62 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
     // STEP 4: Upload to Cloudinary for storage & gallery
     // ============================================================
     let cloudinaryUrl = null;
+    let selfieUrl = null;
     const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
     const CLOUD_KEY = process.env.CLOUDINARY_API_KEY;
     const CLOUD_SECRET = process.env.CLOUDINARY_API_SECRET;
 
     if (CLOUD_NAME && CLOUD_KEY && CLOUD_SECRET) {
-      try {
-        console.log("Step 4: Uploading to Cloudinary...");
-        const timestamp = Math.floor(Date.now() / 1000);
-        const folder = "weddings/hussein-shahd-2026";
-        const publicId = `guest_${timestamp}_${Math.random()
-          .toString(36)
-          .slice(2, 8)}`;
+      const crypto = await import("crypto");
 
-        const crypto = await import("crypto");
-        const sigString = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${CLOUD_SECRET}`;
-        const signature = crypto
-          .createHash("sha1")
-          .update(sigString)
-          .digest("hex");
+      async function uploadToCloudinary(imageData, mimeType, idPrefix) {
+        try {
+          const timestamp = Math.floor(Date.now() / 1000);
+          const folder = "weddings/hussein-shahd-2026";
+          const publicId = `${idPrefix}_${timestamp}_${Math.random()
+            .toString(36)
+            .slice(2, 8)}`;
 
-        const cloudForm = new URLSearchParams();
-        cloudForm.append("file", `data:image/png;base64,${imageBase64}`);
-        cloudForm.append("api_key", CLOUD_KEY);
-        cloudForm.append("timestamp", timestamp.toString());
-        cloudForm.append("signature", signature);
-        cloudForm.append("folder", folder);
-        cloudForm.append("public_id", publicId);
+          const sigString = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${CLOUD_SECRET}`;
+          const signature = crypto
+            .createHash("sha1")
+            .update(sigString)
+            .digest("hex");
 
-        const cloudRes = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-          { method: "POST", body: cloudForm }
-        );
+          const cloudForm = new URLSearchParams();
+          cloudForm.append("file", `data:${mimeType};base64,${imageData}`);
+          cloudForm.append("api_key", CLOUD_KEY);
+          cloudForm.append("timestamp", timestamp.toString());
+          cloudForm.append("signature", signature);
+          cloudForm.append("folder", folder);
+          cloudForm.append("public_id", publicId);
 
-        if (cloudRes.ok) {
-          const cloudData = await cloudRes.json();
-          cloudinaryUrl = cloudData.secure_url;
-          console.log("Cloudinary upload success:", cloudinaryUrl);
-        } else {
-          console.log(
-            "Cloudinary upload failed (non-critical), continuing..."
+          const cloudRes = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+            { method: "POST", body: cloudForm }
           );
+
+          if (cloudRes.ok) {
+            const cloudData = await cloudRes.json();
+            console.log(`Cloudinary upload success (${idPrefix}):`, cloudData.secure_url);
+            return cloudData.secure_url;
+          }
+        } catch (err) {
+          console.log(`Cloudinary error (${idPrefix}, non-critical):`, err.message);
         }
-      } catch (cloudErr) {
-        console.log("Cloudinary error (non-critical):", cloudErr.message);
+        return null;
       }
+
+      console.log("Step 4: Uploading to Cloudinary...");
+
+      // Upload both in parallel
+      const [caricatureResult, selfieResult] = await Promise.all([
+        uploadToCloudinary(imageBase64, "image/png", "caricature"),
+        uploadToCloudinary(base64Data, "image/png", "selfie"),
+      ]);
+
+      cloudinaryUrl = caricatureResult;
+      selfieUrl = selfieResult;
     } else {
       console.log("Cloudinary not configured, skipping upload");
     }
@@ -289,6 +300,7 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
     return res.status(200).json({
       image: imageBase64,
       cloudinaryUrl,
+      selfieUrl,
       guestCount,
     });
   } catch (err) {
