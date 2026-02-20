@@ -27,6 +27,7 @@ export default function App() {
   const [step, setStep] = useState(STEPS.WELCOME);
   const [selfie, setSelfie] = useState(null);
   const [result, setResult] = useState(null);
+  const [resultFile, setResultFile] = useState(null);
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(null);
   const [loadingMsg, setLoadingMsg] = useState(0);
@@ -44,6 +45,24 @@ export default function App() {
     );
     return () => clearInterval(iv);
   }, [step]);
+
+  // Pre-build shareable file when result arrives (needed for iOS share)
+  useEffect(() => {
+    if (!result) { setResultFile(null); return; }
+    try {
+      const parts = result.split(",");
+      const mime = parts[0].match(/:(.*?);/)[1];
+      const raw = atob(parts[1]);
+      const arr = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+      const blob = new Blob([arr], { type: mime });
+      const fileName = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
+      setResultFile(new File([blob], fileName, { type: mime }));
+    } catch (e) {
+      console.log("Could not pre-build file:", e);
+      setResultFile(null);
+    }
+  }, [result]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -157,6 +176,7 @@ export default function App() {
   const startOver = () => {
     setSelfie(null);
     setResult(null);
+    setResultFile(null);
     setError("");
     setVideoReady(false);
     setStep(STEPS.WELCOME);
@@ -623,38 +643,19 @@ export default function App() {
               </button>
               <button
                 className="btn"
-                onClick={async () => {
-                  const fileName = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
-
-                  // Convert data URL to blob
-                  const parts = result.split(",");
-                  const mime = parts[0].match(/:(.*?);/)[1];
-                  const raw = atob(parts[1]);
-                  const arr = new Uint8Array(raw.length);
-                  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-                  const blob = new Blob([arr], { type: mime });
-                  const file = new File([blob], fileName, { type: mime });
-
-                  // iOS Safari: native share sheet with "Save Image" option
-                  const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
-
-                  if (navigator.share && canShareFiles) {
-                    try {
-                      await navigator.share({ files: [file], title: `Photo with ${WEDDING.coupleNames}` });
-                      return;
-                    } catch (err) {
-                      if (err.name === "AbortError") return;
-                      console.log("Share error:", err.message);
-                    }
+                onClick={() => {
+                  // navigator.share MUST be called synchronously from tap for iOS
+                  if (resultFile && navigator.share && navigator.canShare && navigator.canShare({ files: [resultFile] })) {
+                    navigator.share({ files: [resultFile] }).catch(() => {});
+                  } else {
+                    // Fallback: download
+                    const link = document.createElement("a");
+                    link.href = result;
+                    link.download = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
                   }
-
-                  // Fallback
-                  const link = document.createElement("a");
-                  link.href = result;
-                  link.download = fileName;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
                 }}
               >
                 Save Photo
