@@ -27,7 +27,6 @@ export default function App() {
   const [step, setStep] = useState(STEPS.WELCOME);
   const [selfie, setSelfie] = useState(null);
   const [result, setResult] = useState(null);
-  const [resultFile, setResultFile] = useState(null);
   const [error, setError] = useState("");
   const [retryData, setRetryData] = useState(null);
   const [countdown, setCountdown] = useState(null);
@@ -46,24 +45,6 @@ export default function App() {
     );
     return () => clearInterval(iv);
   }, [step]);
-
-  // Pre-build shareable file when result arrives (needed for iOS share)
-  useEffect(() => {
-    if (!result) { setResultFile(null); return; }
-    try {
-      const parts = result.split(",");
-      const mime = parts[0].match(/:(.*?);/)[1];
-      const raw = atob(parts[1]);
-      const arr = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-      const blob = new Blob([arr], { type: mime });
-      const fileName = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
-      setResultFile(new File([blob], fileName, { type: mime }));
-    } catch (e) {
-      console.log("Could not pre-build file:", e);
-      setResultFile(null);
-    }
-  }, [result]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -181,7 +162,6 @@ export default function App() {
   const startOver = () => {
     setSelfie(null);
     setResult(null);
-    setResultFile(null);
     setError("");
     setRetryData(null);
     setVideoReady(false);
@@ -678,25 +658,18 @@ export default function App() {
               <button className="btn btn-outline" onClick={startOver}>
                 Take Another
               </button>
-              <button
+              <a
+                href={result}
+                download={`photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`}
                 className="btn"
-                onClick={() => {
-                  // navigator.share MUST be called synchronously from tap for iOS
-                  if (resultFile && navigator.share && navigator.canShare && navigator.canShare({ files: [resultFile] })) {
-                    navigator.share({ files: [resultFile] }).catch(() => {});
-                  } else {
-                    // Fallback: download
-                    const link = document.createElement("a");
-                    link.href = result;
-                    link.download = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }
+                style={{
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
                 }}
               >
                 Save Photo
-              </button>
+              </a>
             </div>
           </div>
         )}
