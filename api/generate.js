@@ -1,665 +1,384 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+export const config = { maxDuration: 300 };
 
-/*
- * ─────────────────────────────────────────────
- *  PERSONALIZATION — Change these to match
- *  your wedding. This is the ONLY thing you
- *  need to edit in this file.
- * ─────────────────────────────────────────────
- */
-const WEDDING = {
-  coupleNames: "Sarah & James",
-  weddingDate: "February 14, 2026",
-};
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-const STEPS = { WELCOME: 0, CAMERA: 1, GENERATING: 2, RESULT: 3 };
+  const { guestPhoto } = req.body;
 
-const LOADING_MESSAGES = [
-  "Getting everyone together…",
-  "Arranging the flowers…",
-  "Finding the perfect lighting…",
-  "Say cheese!",
-  "Cueing the wedding march…",
-  "Almost there…",
-];
+  if (!guestPhoto) {
+    return res.status(400).json({ error: "No guest photo provided" });
+  }
 
-export default function App() {
-  const [step, setStep] = useState(STEPS.WELCOME);
-  const [selfie, setSelfie] = useState(null);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
-  const [countdown, setCountdown] = useState(null);
-  const [loadingMsg, setLoadingMsg] = useState(0);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const BRIDE_PHOTO_URL = process.env.BRIDE_PHOTO_URL;
+  const GROOM_PHOTO_URL = process.env.GROOM_PHOTO_URL;
 
-  // Cycle loading messages
-  useEffect(() => {
-    if (step !== STEPS.GENERATING) return;
-    const iv = setInterval(
-      () => setLoadingMsg((i) => (i + 1) % LOADING_MESSAGES.length),
-      3000
+  if (!OPENAI_API_KEY) {
+    return res.status(500).json({ error: "Missing API key" });
+  }
+
+  function resizeUrl(url) {
+    if (!url) return url;
+    if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+      return url.replace("/upload/", "/upload/c_limit,w_1024,h_1024/");
+    }
+    return url;
+  }
+
+  try {
+    // ============================================================
+    // STEP 1: Analyze guest selfie with GPT-4o vision
+    // ============================================================
+    console.log("Step 1: Analyzing guest photo with GPT-4o vision...");
+
+    const base64Data = guestPhoto.split(",")[1] || guestPhoto;
+    const mimeMatch = guestPhoto.match(/^data:(image\/\w+);/);
+    const guestMime = mimeMatch ? mimeMatch[1] : "image/png";
+
+    const visionRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        max_tokens: 300,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Analyze this photo. How many human faces are clearly visible? For each face, briefly note their position (left, center-left, center, center-right, right) and approximate gender if obvious (male/female/unknown).
+
+Respond ONLY in this exact JSON format, nothing else:
+{"face_count": NUMBER, "faces": [{"position": "left/center/right", "gender": "male/female/unknown"}]}
+
+If no faces are found, respond: {"face_count": 0, "faces": []}`,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${guestMime};base64,${base64Data}`,
+                  detail: "low",
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    let guestCount = 1;
+    let guestFaces = [{ position: "center", gender: "unknown" }];
+
+    if (visionRes.ok) {
+      const visionData = await visionRes.json();
+      const visionText = visionData.choices?.[0]?.message?.content || "";
+      console.log("Vision response:", visionText);
+
+      try {
+        const cleaned = visionText.replace(/```json\n?|```/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed.face_count > 0 && parsed.faces?.length > 0) {
+          guestCount = parsed.face_count;
+          guestFaces = parsed.faces;
+        }
+      } catch (parseErr) {
+        console.log("Could not parse vision response, defaulting to 1 guest");
+      }
+    } else {
+      console.log("Vision API failed, defaulting to 1 guest");
+    }
+
+    // Cap at reasonable number
+    if (guestCount > 6) guestCount = 6;
+
+    console.log(`Detected ${guestCount} guest(s) in selfie`);
+
+    // ============================================================
+    // STEP 2: Build dynamic prompt based on face count
+    // ============================================================
+    const totalPeople = 2 + guestCount; // bride + groom + guests
+
+    // Build guest subject blocks
+    let guestSubjects = "";
+    let guestPlacement = "";
+
+    if (guestCount === 1) {
+      guestPlacement = "Center: Guest (from @image2)";
+      guestSubjects =
+        "GUEST (CENTER) — IDENTITY LOCK\n" +
+        "Reference: @image2\n" +
+        "Reconstruct their face to match @image2 with maximum fidelity:\n" +
+        "- preserve defining facial features and asymmetry exactly\n" +
+        "Expression: friendly natural smile\n" +
+        "Outfit: wedding-appropriate formal attire (neutral and elegant)\n";
+    } else if (guestCount === 2) {
+      guestPlacement =
+        "Center-Left: Guest 1 (first person in @image2)\n" +
+        "Center-Right: Guest 2 (second person in @image2)";
+      guestSubjects =
+        "GUEST 1 (CENTER-LEFT) — IDENTITY LOCK\n" +
+        "Reference: first person visible in @image2 (on the left side of the photo)\n" +
+        "Reconstruct their face with maximum fidelity from @image2.\n" +
+        "- preserve defining facial features and asymmetry exactly\n" +
+        `- approximate gender: ${guestFaces[0]?.gender || "unknown"}\n` +
+        "Expression: friendly natural smile\n" +
+        "Outfit: wedding-appropriate formal attire\n" +
+        "--------------------------------\n" +
+        "GUEST 2 (CENTER-RIGHT) — IDENTITY LOCK\n" +
+        "Reference: second person visible in @image2 (on the right side of the photo)\n" +
+        "Reconstruct their face with maximum fidelity from @image2.\n" +
+        "- preserve defining facial features and asymmetry exactly\n" +
+        `- approximate gender: ${guestFaces[1]?.gender || "unknown"}\n` +
+        "Expression: friendly natural smile\n" +
+        "Outfit: wedding-appropriate formal attire\n";
+    } else {
+      // 3+ guests
+      const guestLabels = [];
+      const guestBlocks = [];
+      for (let i = 0; i < guestCount; i++) {
+        const label = `Guest ${i + 1}`;
+        const pos = guestFaces[i]?.position || "center";
+        const gender = guestFaces[i]?.gender || "unknown";
+        guestLabels.push(`${label} (from @image2)`);
+        guestBlocks.push(
+          `${label.toUpperCase()} — IDENTITY LOCK\n` +
+            `Reference: person ${i + 1} in @image2 (${pos} of the photo)\n` +
+            `Reconstruct their face with maximum fidelity from @image2.\n` +
+            `- preserve defining facial features exactly\n` +
+            `- approximate gender: ${gender}\n` +
+            `Expression: friendly natural smile\n` +
+            `Outfit: wedding-appropriate formal attire\n`
+        );
+      }
+      guestPlacement =
+        "Between Bride and Groom (spread evenly): " +
+        guestLabels.join(", ");
+      guestSubjects = guestBlocks.join("--------------------------------\n");
+    }
+
+    const prompt =
+      `Create a wedding photobooth CARICATURE illustration with EXACTLY ${totalPeople} people and ZERO extras.\n` +
+      "PRIORITY ORDER (do not violate):\n" +
+      "1) Identity likeness to reference images\n" +
+      "2) Correct subject count + placement\n" +
+      "3) Wedding outfits + cheerful expressions\n" +
+      "4) Caricature rendering style (ONLY head-to-body exaggeration, NOT facial geometry changes)\n" +
+      "5) Background/location\n" +
+      "6) Text overlay (lowest priority)\n" +
+      "HARD CONSTRAINTS:\n" +
+      `- EXACTLY ${totalPeople} humans total: 1 Bride, 1 Groom, and ${guestCount} guest(s). No other people, no silhouettes, no reflections.\n` +
+      "- Do not blend faces. Do not average faces. Do not swap faces between subjects.\n" +
+      '- Do not beautify, "idealize," or change ethnicity.\n' +
+      "- Do not alter facial geometry beyond what is necessary to match the references.\n" +
+      `- The guest photo (@image2) contains ${guestCount} person(s). You MUST extract ALL ${guestCount} face(s) from it and include each one as a separate person in the illustration.\n` +
+      "SUBJECT PLACEMENT (left to right):\n" +
+      "Far Left: Bride (from @image0)\n" +
+      guestPlacement +
+      "\n" +
+      "Far Right: Groom (from @image1)\n" +
+      "--------------------------------\n" +
+      "BRIDE (FAR LEFT) — IDENTITY LOCK\n" +
+      "Reference: @image0\n" +
+      "Reconstruct her face to match @image0 with maximum fidelity:\n" +
+      "- keep the same facial proportions, eye spacing, eyelid shape, nose shape, lip shape, chin shape, and cheekbone width\n" +
+      "- preserve unique asymmetry and distinctive features exactly\n" +
+      "Expression: BIG CHEERFUL SMILE, joyful, wedding-day excitement\n" +
+      "Outfit: elegant white silk wedding dress\n" +
+      "--------------------------------\n" +
+      "GROOM (FAR RIGHT) — IDENTITY LOCK\n" +
+      "Reference: @image1\n" +
+      "Reconstruct his face to match @image1 with maximum fidelity:\n" +
+      "- keep the same jawline, chin projection, nose structure, brow shape, and facial hair pattern/density\n" +
+      "- preserve unique asymmetry and distinctive features exactly\n" +
+      "Expression: BIG CHEERFUL SMILE, happy and confident\n" +
+      "Outfit: tailored black tuxedo, white shirt, black bow tie\n" +
+      "--------------------------------\n" +
+      guestSubjects +
+      "--------------------------------\n" +
+      "CARICATURE RENDERING (LIKELINESS-SAFE)\n" +
+      "This is a caricature ONLY by:\n" +
+      "- slightly larger heads relative to bodies (photobooth caricature)\n" +
+      "- slightly amplified smiles and cheek lift\n" +
+      "DO NOT change facial feature sizes, spacing, or bone structure.\n" +
+      "Style: clean professional caricature illustration, crisp linework, smooth shading, polished wedding-booth look.\n" +
+      "--------------------------------\n" +
+      "SETTING\n" +
+      "Raouche Rock terrace, Beirut.\n" +
+      "Empty stone terrace. Mediterranean Sea in the background. Warm sunset atmosphere.\n" +
+      "No crowds. No background people. No props that block faces.\n" +
+      "--------------------------------\n" +
+      "TEXT OVERLAY (LOWEST PRIORITY)\n" +
+      'Top in white calligraphy: "Can\'t wait to celebrate with you"\n' +
+      'Bottom center in small serif: "Hussein & Shahd — May 29, 2026"\n' +
+      "\n" +
+      "NEGATIVE / AVOID:\n" +
+      "extra people, background people, crowd, silhouette, reflection people,\n" +
+      "face blending, face merge, averaged face, swapped faces,\n" +
+      "generic handsome face, generic beautiful face, beautified,\n" +
+      "anime, pixar, doll-like, plastic skin, airbrushed, smooth skin,\n" +
+      "wrong ethnicity, altered jawline, altered nose, altered eye spacing,\n" +
+      "deformed hands, extra fingers, warped mouth, crooked teeth";
+
+    console.log(`Prompt built for ${totalPeople} people (${guestCount} guests)`);
+
+    // ============================================================
+    // STEP 3: Generate the caricature with gpt-image-1
+    // ============================================================
+    console.log("Step 3: Generating caricature...");
+
+    const boundary =
+      "----FormBoundary" + Math.random().toString(36).slice(2);
+    const parts = [];
+
+    function addField(name, value) {
+      parts.push(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+      );
+    }
+
+    function addFile(name, filename, contentType, buffer) {
+      parts.push(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`
+      );
+      parts.push(buffer);
+      parts.push("\r\n");
+    }
+
+    addField("model", "gpt-image-1");
+    addField("prompt", prompt);
+    addField("size", "1536x1024");
+    addField("quality", "medium");
+
+    // @image0: Bride
+    if (BRIDE_PHOTO_URL) {
+      const brideRes = await fetch(resizeUrl(BRIDE_PHOTO_URL));
+      if (brideRes.ok) {
+        const brideBuffer = Buffer.from(await brideRes.arrayBuffer());
+        addFile("image[]", "bride.jpg", "image/jpeg", brideBuffer);
+      }
+    }
+
+    // @image1: Groom
+    if (GROOM_PHOTO_URL) {
+      const groomRes = await fetch(resizeUrl(GROOM_PHOTO_URL));
+      if (groomRes.ok) {
+        const groomBuffer = Buffer.from(await groomRes.arrayBuffer());
+        addFile("image[]", "groom.jpg", "image/jpeg", groomBuffer);
+      }
+    }
+
+    // @image2: Guest(s) selfie
+    const guestBuffer = Buffer.from(base64Data, "base64");
+    addFile("image[]", "guest.png", "image/png", guestBuffer);
+
+    parts.push(`--${boundary}--\r\n`);
+
+    const bodyParts = parts.map((p) =>
+      typeof p === "string" ? Buffer.from(p, "utf-8") : p
     );
-    return () => clearInterval(iv);
-  }, [step]);
+    const bodyBuffer = Buffer.concat(bodyParts);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }, []);
+    const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: bodyBuffer,
+    });
 
-  const openCamera = useCallback(async () => {
-    setError("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280 },
-          height: { ideal: 960 },
-        },
-        audio: false,
+    if (!openaiRes.ok) {
+      const errData = await openaiRes.json().catch(() => ({}));
+      console.error("OpenAI image error:", JSON.stringify(errData));
+      return res.status(502).json({
+        error: errData?.error?.message || "AI generation failed",
       });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setStep(STEPS.CAMERA);
-    } catch {
-      setError(
-        "We need camera access to take your photo. Please allow it and try again."
-      );
     }
-  }, []);
 
-  const snap = useCallback(() => setCountdown(3), []);
+    const data = await openaiRes.json();
+    const img = data.data?.[0];
 
-  // Countdown → auto-capture at 0
-  useEffect(() => {
-    if (countdown === null) return;
-    if (countdown === 0) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (video && canvas) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext("2d").drawImage(video, 0, 0);
-        const dataUrl = canvas.toDataURL("image/png");
-        setSelfie(dataUrl);
-        stopCamera();
-        generateImage(dataUrl);
+    let imageBase64 = null;
+    if (img?.b64_json) {
+      imageBase64 = img.b64_json;
+    } else if (img?.url) {
+      // Fetch URL and convert to base64
+      const imgRes = await fetch(img.url);
+      if (imgRes.ok) {
+        const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+        imageBase64 = imgBuf.toString("base64");
       }
-      setCountdown(null);
-      return;
     }
-    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [countdown, stopCamera]);
 
-  /*
-   * Send selfie to our backend proxy at /api/generate
-   * The backend holds the API key + bride/groom photos
-   * and calls OpenAI on our behalf.
-   */
-  const generateImage = useCallback(async (guestDataUrl) => {
-    setStep(STEPS.GENERATING);
-    setLoadingMsg(0);
+    if (!imageBase64) {
+      return res.status(502).json({ error: "No image returned" });
+    }
 
-    try {
-      const base64 = guestDataUrl.split(",")[1];
+    // ============================================================
+    // STEP 4: Upload to Cloudinary for storage & gallery
+    // ============================================================
+    let cloudinaryUrl = null;
+    const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+    const CLOUD_KEY = process.env.CLOUDINARY_API_KEY;
+    const CLOUD_SECRET = process.env.CLOUDINARY_API_SECRET;
 
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guestPhoto: base64 }),
-      });
+    if (CLOUD_NAME && CLOUD_KEY && CLOUD_SECRET) {
+      try {
+        console.log("Step 4: Uploading to Cloudinary...");
+        const timestamp = Math.floor(Date.now() / 1000);
+        const folder = "weddings/hussein-shahd-2026";
+        const publicId = `guest_${timestamp}_${Math.random().toString(36).slice(2, 8)}`;
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || `Server error ${res.status}`);
+        // Generate signature
+        const crypto = await import("crypto");
+        const sigString = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${CLOUD_SECRET}`;
+        const signature = crypto
+          .createHash("sha1")
+          .update(sigString)
+          .digest("hex");
+
+        const cloudForm = new URLSearchParams();
+        cloudForm.append("file", `data:image/png;base64,${imageBase64}`);
+        cloudForm.append("api_key", CLOUD_KEY);
+        cloudForm.append("timestamp", timestamp.toString());
+        cloudForm.append("signature", signature);
+        cloudForm.append("folder", folder);
+        cloudForm.append("public_id", publicId);
+
+        const cloudRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+          { method: "POST", body: cloudForm }
+        );
+
+        if (cloudRes.ok) {
+          const cloudData = await cloudRes.json();
+          cloudinaryUrl = cloudData.secure_url;
+          console.log("Cloudinary upload success:", cloudinaryUrl);
+        } else {
+          console.log("Cloudinary upload failed (non-critical), continuing...");
+        }
+      } catch (cloudErr) {
+        console.log("Cloudinary error (non-critical):", cloudErr.message);
       }
-
-      const data = await res.json();
-      setResult(`data:image/png;base64,${data.image}`);
-      setStep(STEPS.RESULT);
-      console.log("Cloudinary URL:", data.cloudinaryUrl || "not uploaded");
-    } catch (err) {
-      console.error(err);
-      setError(
-        "Something went wrong creating your portrait. Let's try again!"
-      );
-      setStep(STEPS.WELCOME);
+    } else {
+      console.log("Cloudinary not configured, skipping upload");
     }
-  }, []);
 
-  const startOver = () => {
-    setSelfie(null);
-    setResult(null);
-    setError("");
-    setStep(STEPS.WELCOME);
-  };
-
-  const Rings = ({ size = 48 }) => (
-    <svg
-      width={size}
-      height={size * 0.65}
-      viewBox="0 0 80 52"
-      fill="none"
-      style={{ opacity: 0.45 }}
-    >
-      <ellipse cx="28" cy="26" rx="22" ry="22" stroke="#c9956b" strokeWidth="1.5" />
-      <ellipse cx="52" cy="26" rx="22" ry="22" stroke="#c9956b" strokeWidth="1.5" />
-    </svg>
-  );
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(170deg, #141110 0%, #2a1f18 40%, #1a1410 100%)",
-        fontFamily: "'Cormorant Garamond', Georgia, serif",
-        color: "#f0e6d8",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@200;300;400&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(24px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes pop { 0% { transform:scale(.4); opacity:0 } 60% { transform:scale(1.2); opacity:1 } 100% { transform:scale(1) } }
-        @keyframes spin { to { transform:rotate(360deg) } }
-        @keyframes shimmer { 0% { background-position:-200% center } 100% { background-position:200% center } }
-        @keyframes breathe { 0%,100% { opacity:.45 } 50% { opacity:.85 } }
-        @keyframes drift {
-          0%,100% { transform:translate(0,0) rotate(0deg) }
-          25% { transform:translate(12px,-18px) rotate(4deg) }
-          50% { transform:translate(-6px,-30px) rotate(-2deg) }
-          75% { transform:translate(-14px,-10px) rotate(3deg) }
-        }
-        @keyframes resultReveal { from { opacity:0; transform:scale(.93) } to { opacity:1; transform:scale(1) } }
-        .btn {
-          font-family:'Josefin Sans',sans-serif; font-weight:300;
-          letter-spacing:3px; text-transform:uppercase; font-size:13px;
-          padding:18px 44px; border:none; cursor:pointer;
-          transition:all .35s ease;
-          background:linear-gradient(135deg,#c9956b,#d4a574);
-          color:#1a1410; border-radius:2px;
-        }
-        .btn:hover { background:linear-gradient(135deg,#d4a574,#e8c4a0); box-shadow:0 0 40px rgba(201,149,107,.25) }
-        .btn:active { transform:scale(.97) }
-        .btn-outline { background:transparent; border:1px solid rgba(201,149,107,.5); color:#e8c4a0 }
-        .btn-outline:hover { background:rgba(201,149,107,.12); box-shadow:none }
-        .video-feed { transform:scaleX(-1) }
-      `}</style>
-
-      <canvas ref={canvasRef} style={{ display: "none" }} />
-
-      {/* Floating petals */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          pointerEvents: "none",
-          zIndex: 0,
-          overflow: "hidden",
-        }}
-      >
-        {Array.from({ length: 14 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              width: Math.random() * 8 + 3,
-              height: Math.random() * 8 + 3,
-              borderRadius: "50%",
-              background: [
-                "#c9956b",
-                "#d4a574",
-                "#e8c4a0",
-                "#b8835a",
-                "#f0d9b5",
-              ][i % 5],
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              opacity: 0.15 + Math.random() * 0.2,
-              animation: `drift ${8 + Math.random() * 10}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * -10}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          width: "100%",
-          maxWidth: 580,
-          padding: "0 20px",
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* ─── WELCOME ─── */}
-        {step === STEPS.WELCOME && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
-              gap: 24,
-              animation: "fadeUp .8s ease-out",
-            }}
-          >
-            <Rings size={56} />
-
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: 5,
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 200,
-                textTransform: "uppercase",
-                color: "#c9956b",
-              }}
-            >
-              The wedding of
-            </div>
-
-            <h1
-              style={{
-                fontSize: "clamp(34px, 7vw, 54px)",
-                fontWeight: 300,
-                fontStyle: "italic",
-                lineHeight: 1.15,
-                letterSpacing: 1,
-                background:
-                  "linear-gradient(135deg, #f0e6d8, #c9956b, #f0e6d8)",
-                backgroundSize: "200% auto",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                animation: "shimmer 5s linear infinite",
-              }}
-            >
-              {WEDDING.coupleNames}
-            </h1>
-
-            <div
-              style={{
-                fontSize: 14,
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 200,
-                letterSpacing: 2,
-                opacity: 0.5,
-              }}
-            >
-              {WEDDING.weddingDate}
-            </div>
-
-            <div
-              style={{
-                width: 80,
-                height: 1,
-                background:
-                  "linear-gradient(90deg, transparent, #c9956b, transparent)",
-              }}
-            />
-
-            <p
-              style={{
-                fontSize: 17,
-                fontStyle: "italic",
-                lineHeight: 1.7,
-                opacity: 0.6,
-                maxWidth: 360,
-              }}
-            >
-              Take a selfie and we'll create a beautiful photo of you with the
-              happy couple
-            </p>
-
-            <button
-              className="btn"
-              onClick={openCamera}
-              style={{ marginTop: 8 }}
-            >
-              Take My Photo
-            </button>
-
-            {error && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: "14px 22px",
-                  background: "rgba(180,80,60,.12)",
-                  border: "1px solid rgba(180,80,60,.25)",
-                  borderRadius: 4,
-                  fontSize: 14,
-                  fontFamily: "'Josefin Sans', sans-serif",
-                  fontWeight: 300,
-                  color: "#e8a090",
-                  maxWidth: 380,
-                }}
-              >
-                {error}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── CAMERA ─── */}
-        {step === STEPS.CAMERA && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 24,
-              animation: "fadeUp .5s ease-out",
-            }}
-          >
-            <p
-              style={{
-                fontSize: 18,
-                fontStyle: "italic",
-                opacity: 0.6,
-                textAlign: "center",
-              }}
-            >
-              Strike a pose with {WEDDING.coupleNames}!
-            </p>
-
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                aspectRatio: "3/4",
-                maxHeight: "55vh",
-                borderRadius: 6,
-                overflow: "hidden",
-                border: "1px solid rgba(201,149,107,.25)",
-                boxShadow: "0 24px 64px rgba(0,0,0,.5)",
-              }}
-            >
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="video-feed"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-
-              {/* Viewfinder corners */}
-              {[
-                ["top", "left"],
-                ["top", "right"],
-                ["bottom", "left"],
-                ["bottom", "right"],
-              ].map(([v, h]) => (
-                <div
-                  key={v + h}
-                  style={{
-                    position: "absolute",
-                    [v]: 14,
-                    [h]: 14,
-                    width: 24,
-                    height: 24,
-                    [`border${v[0].toUpperCase() + v.slice(1)}`]:
-                      "1.5px solid rgba(201,149,107,.5)",
-                    [`border${h[0].toUpperCase() + h.slice(1)}`]:
-                      "1.5px solid rgba(201,149,107,.5)",
-                  }}
-                />
-              ))}
-
-              {/* Countdown overlay */}
-              {countdown !== null && countdown > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(0,0,0,.35)",
-                  }}
-                >
-                  <span
-                    key={countdown}
-                    style={{
-                      fontSize: 110,
-                      fontWeight: 300,
-                      color: "#f0e6d8",
-                      animation: "pop .45s ease-out",
-                      textShadow: "0 0 50px rgba(201,149,107,.4)",
-                    }}
-                  >
-                    {countdown}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <button
-              className="btn"
-              onClick={snap}
-              disabled={countdown !== null}
-              style={{ opacity: countdown !== null ? 0.5 : 1 }}
-            >
-              {countdown !== null ? "Hold still…" : "Capture"}
-            </button>
-          </div>
-        )}
-
-        {/* ─── GENERATING ─── */}
-        {step === STEPS.GENERATING && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 32,
-              animation: "fadeUp .5s ease-out",
-            }}
-          >
-            {selfie && (
-              <div
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  border: "2px solid rgba(201,149,107,.5)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,.4)",
-                }}
-              >
-                <img
-                  src={selfie}
-                  alt=""
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    transform: "scaleX(-1)",
-                  }}
-                />
-              </div>
-            )}
-
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                border: "2px solid rgba(201,149,107,.15)",
-                borderTopColor: "#c9956b",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  fontSize: 22,
-                  fontStyle: "italic",
-                  marginBottom: 10,
-                  animation: "breathe 3s ease-in-out infinite",
-                }}
-              >
-                {LOADING_MESSAGES[loadingMsg]}
-              </p>
-              <p
-                style={{
-                  fontSize: 12,
-                  fontFamily: "'Josefin Sans', sans-serif",
-                  fontWeight: 200,
-                  letterSpacing: 1.5,
-                  opacity: 0.35,
-                  textTransform: "uppercase",
-                }}
-              >
-                Creating your photo with {WEDDING.coupleNames}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* ─── RESULT ─── */}
-        {step === STEPS.RESULT && result && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 24,
-              padding: "32px 0",
-              animation: "fadeUp .6s ease-out",
-            }}
-          >
-            <Rings size={40} />
-            <p
-              style={{
-                fontSize: 24,
-                fontStyle: "italic",
-                textAlign: "center",
-              }}
-            >
-              A moment to remember!
-            </p>
-
-            <div
-              style={{
-                width: "100%",
-                borderRadius: 6,
-                overflow: "hidden",
-                border: "1px solid rgba(201,149,107,.35)",
-                boxShadow:
-                  "0 24px 80px rgba(201,149,107,.12), 0 32px 64px rgba(0,0,0,.5)",
-                animation: "resultReveal .8s ease-out",
-              }}
-            >
-              <img
-                src={result}
-                alt="Wedding Portrait"
-                style={{ width: "100%", display: "block" }}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 14,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                marginTop: 4,
-              }}
-            >
-              <button className="btn btn-outline" onClick={startOver}>
-                Take Another
-              </button>
-              <button
-                className="btn"
-                onClick={async () => {
-                  try {
-                    // Convert data URL to blob
-                    const response = await fetch(result);
-                    const blob = await response.blob();
-                    const file = new File(
-                      [blob],
-                      `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`,
-                      { type: "image/png" }
-                    );
-
-                    // Use Web Share API if available (iOS Safari → native share sheet with "Save Image")
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                      await navigator.share({
-                        files: [file],
-                        title: `Photo with ${WEDDING.coupleNames}`,
-                      });
-                    } else {
-                      // Fallback: traditional download for browsers without share API
-                      const link = document.createElement("a");
-                      link.href = result;
-                      link.download = file.name;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }
-                  } catch (err) {
-                    // User cancelled share or error — try fallback download
-                    if (err.name !== "AbortError") {
-                      const link = document.createElement("a");
-                      link.href = result;
-                      link.download = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }
-                  }
-                }}
-              >
-                Save Photo
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div
-          style={{
-            textAlign: "center",
-            padding: "24px 0",
-            fontSize: 10,
-            fontFamily: "'Josefin Sans', sans-serif",
-            fontWeight: 200,
-            letterSpacing: 2.5,
-            textTransform: "uppercase",
-            opacity: 0.2,
-          }}
-        >
-          {WEDDING.coupleNames} · Wedding Photo Booth
-        </div>
-      </div>
-    </div>
-  );
+    return res.status(200).json({
+      image: imageBase64,
+      cloudinaryUrl,
+      guestCount,
+    });
+  } catch (err) {
+    console.error("Generate error:", err);
+    return res
+      .status(500)
+      .json({ error: "Something went wrong. Please try again." });
+  }
 }
