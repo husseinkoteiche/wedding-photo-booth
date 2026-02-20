@@ -250,7 +250,7 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
       parts.push("\r\n");
     }
 
-    addField("model", "gpt-image-1");
+    addField("model", "gpt-image-1.5");
     addField("prompt", prompt);
     addField("size", "1536x1024");
     addField("quality", "medium");
