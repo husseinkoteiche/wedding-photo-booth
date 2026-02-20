@@ -148,7 +148,7 @@ export default function App() {
     } catch (err) {
       console.error(err);
       setError(
-        "DEBUG: " + err.message
+        "Something went wrong creating your portrait. Let's try again!"
       );
       setStep(STEPS.WELCOME);
     }
@@ -635,20 +635,16 @@ export default function App() {
                   const blob = new Blob([arr], { type: mime });
                   const file = new File([blob], fileName, { type: mime });
 
-                  const hasShare = !!navigator.share;
-                  const hasCanShare = !!navigator.canShare;
-                  const canShareFiles = hasCanShare && navigator.canShare({ files: [file] });
+                  // iOS Safari: native share sheet with "Save Image" option
+                  const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
 
-                  // Debug: show what's supported (REMOVE THIS AFTER TESTING)
-                  alert(`share: ${hasShare}, canShare: ${hasCanShare}, canShareFiles: ${canShareFiles}, size: ${blob.size}`);
-
-                  if (hasShare && canShareFiles) {
+                  if (navigator.share && canShareFiles) {
                     try {
                       await navigator.share({ files: [file], title: `Photo with ${WEDDING.coupleNames}` });
                       return;
                     } catch (err) {
                       if (err.name === "AbortError") return;
-                      alert("Share error: " + err.message);
+                      console.log("Share error:", err.message);
                     }
                   }
 
