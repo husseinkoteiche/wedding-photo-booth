@@ -276,6 +276,9 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
             const cloudData = await cloudRes.json();
             console.log(`Cloudinary upload success (${idPrefix}):`, cloudData.secure_url);
             return cloudData.secure_url;
+          } else {
+            const errText = await cloudRes.text().catch(() => "unknown");
+            console.log(`Cloudinary upload failed (${idPrefix}):`, cloudRes.status, errText);
           }
         } catch (err) {
           console.log(`Cloudinary error (${idPrefix}, non-critical):`, err.message);
@@ -284,11 +287,12 @@ If no faces are found, respond: {"face_count": 0, "faces": []}`,
       }
 
       console.log("Step 4: Uploading to Cloudinary...");
+      console.log(`Selfie base64 length: ${base64Data.length}, Caricature base64 length: ${imageBase64.length}`);
 
       // Upload both in parallel
       const [caricatureResult, selfieResult] = await Promise.all([
         uploadToCloudinary(imageBase64, "image/png", "caricature"),
-        uploadToCloudinary(base64Data, "image/png", "selfie"),
+        uploadToCloudinary(base64Data, guestMime, "selfie"),
       ]);
 
       cloudinaryUrl = caricatureResult;
