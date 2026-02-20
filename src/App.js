@@ -65,8 +65,6 @@ export default function App() {
         audio: false,
       });
       streamRef.current = stream;
-      // Don't set srcObject here — the video element doesn't exist yet.
-      // The useEffect below will attach it once CAMERA step renders the <video>.
       setStep(STEPS.CAMERA);
     } catch {
       setError(
@@ -75,14 +73,15 @@ export default function App() {
     }
   }, []);
 
-  // Attach stream to video element once it's rendered
-  useEffect(() => {
-    if (step === STEPS.CAMERA && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.onloadeddata = () => setVideoReady(true);
-      videoRef.current.play().catch(() => {});
+  // Callback ref: fires the instant the <video> element mounts in the DOM
+  const attachStream = useCallback((videoEl) => {
+    videoRef.current = videoEl;
+    if (videoEl && streamRef.current) {
+      videoEl.srcObject = streamRef.current;
+      videoEl.onloadeddata = () => setVideoReady(true);
+      videoEl.play().catch(() => {});
     }
-  }, [step]);
+  }, []);
 
   const snap = useCallback(() => setCountdown(3), []);
 
@@ -417,7 +416,7 @@ export default function App() {
               }}
             >
               <video
-                ref={videoRef}
+                ref={attachStream}
                 autoPlay
                 playsInline
                 muted
