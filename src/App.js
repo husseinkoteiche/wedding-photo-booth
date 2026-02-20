@@ -601,42 +601,38 @@ export default function App() {
               <button
                 className="btn"
                 onClick={async () => {
-                  try {
-                    // Convert data URL to blob
-                    const response = await fetch(result);
-                    const blob = await response.blob();
-                    const file = new File(
-                      [blob],
-                      `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`,
-                      { type: "image/png" }
-                    );
+                  const fileName = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
 
-                    // Use Web Share API if available (iOS Safari → native share sheet with "Save Image")
+                  try {
+                    // Convert data URL to blob (reliable method for iOS)
+                    const parts = result.split(",");
+                    const mime = parts[0].match(/:(.*?);/)[1];
+                    const raw = atob(parts[1]);
+                    const arr = new Uint8Array(raw.length);
+                    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+                    const blob = new Blob([arr], { type: mime });
+                    const file = new File([blob], fileName, { type: mime });
+
+                    // iOS Safari: native share sheet with "Save Image" option
                     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                       await navigator.share({
                         files: [file],
                         title: `Photo with ${WEDDING.coupleNames}`,
                       });
-                    } else {
-                      // Fallback: traditional download for browsers without share API
-                      const link = document.createElement("a");
-                      link.href = result;
-                      link.download = file.name;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
+                      return;
                     }
                   } catch (err) {
-                    // User cancelled share or error — try fallback download
-                    if (err.name !== "AbortError") {
-                      const link = document.createElement("a");
-                      link.href = result;
-                      link.download = `photo-with-${WEDDING.coupleNames.replace(/\s+/g, "-")}.png`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }
+                    if (err.name === "AbortError") return; // User cancelled share
+                    console.log("Share failed, trying download fallback");
                   }
+
+                  // Fallback: download link (Android / desktop / share failure)
+                  const link = document.createElement("a");
+                  link.href = result;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
                 }}
               >
                 Save Photo
