@@ -29,6 +29,7 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [resultFile, setResultFile] = useState(null);
   const [error, setError] = useState("");
+  const [retryData, setRetryData] = useState(null);
   const [countdown, setCountdown] = useState(null);
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
@@ -145,6 +146,7 @@ export default function App() {
   const generateImage = useCallback(async (guestDataUrl) => {
     setStep(STEPS.GENERATING);
     setLoadingMsg(0);
+    setRetryData(guestDataUrl);
 
     try {
       const base64 = guestDataUrl.split(",")[1];
@@ -163,11 +165,14 @@ export default function App() {
       const data = await res.json();
       setResult(`data:image/png;base64,${data.image}`);
       setStep(STEPS.RESULT);
+      setRetryData(null);
       console.log("Cloudinary URL:", data.cloudinaryUrl || "not uploaded");
     } catch (err) {
       console.error(err);
       setError(
-        "Something went wrong creating your portrait. Let's try again!"
+        err.message === "Failed to fetch" || err.message === "Load failed"
+          ? "Connection lost — your screen may have turned off. Tap Retry to try again!"
+          : "Something went wrong creating your portrait. Let's try again!"
       );
       setStep(STEPS.WELCOME);
     }
@@ -178,6 +183,7 @@ export default function App() {
     setResult(null);
     setResultFile(null);
     setError("");
+    setRetryData(null);
     setVideoReady(false);
     setStep(STEPS.WELCOME);
   };
@@ -391,9 +397,28 @@ export default function App() {
                   fontWeight: 300,
                   color: "#e8a090",
                   maxWidth: 380,
+                  textAlign: "center",
                 }}
               >
                 {error}
+                {retryData && (
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setError("");
+                      generateImage(retryData);
+                    }}
+                    style={{
+                      marginTop: 12,
+                      padding: "12px 32px",
+                      fontSize: 12,
+                      display: "block",
+                      width: "100%",
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -581,6 +606,18 @@ export default function App() {
                 }}
               >
                 Creating your photo with {WEDDING.coupleNames}
+              </p>
+              <p
+                style={{
+                  fontSize: 11,
+                  fontFamily: "'Josefin Sans', sans-serif",
+                  fontWeight: 200,
+                  letterSpacing: 1,
+                  opacity: 0.3,
+                  marginTop: 8,
+                }}
+              >
+                Please keep your screen on
               </p>
             </div>
           </div>
